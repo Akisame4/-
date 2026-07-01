@@ -227,6 +227,7 @@
       currentActionIdx:  0,
       pendingDamageChoice: null,
       winner: null,
+      lastDiceEvents: [],
       log: [`=== 第1ラウンド開始 === 戦場: ${battlefield.name}`],
     };
   }
@@ -334,6 +335,7 @@
       const nin = ninjutsuData.find(n => n.id === ninjutsuId);
       if (!nin) return state;
 
+      s.lastDiceEvents = [];
       const skillNote = nin.skill ? `（指定特技: ${nin.skill}）` : '';
       s.log.push(`[${actor.name}] ${nin.name}${skillNote} → ${defender.name}`);
 
@@ -344,7 +346,13 @@
       const atkRoll  = Core.roll2d6(rng);
       const atkResult = Core.resolveCheck({ roll: atkRoll, targetValue: atkTV, plotValue: atkPlot, isSakanagi: actor.sakanagi });
 
-      s.log.push(`  命中判定: ${atkRoll}（TV${atkTV}）→ ${resultLabel(atkResult)}`);
+      s.log.push(`  命中判定: ${atkRoll.total}（TV${atkTV}）→ ${resultLabel(atkResult)}`);
+      s.lastDiceEvents.push({
+        label: '命中判定',
+        d1: atkRoll.d1, d2: atkRoll.d2, total: atkRoll.total,
+        verdict:    atkResult.isSpecial ? '🌟 スペシャル！' : atkResult.isFumble ? '💀 ファンブル！' : atkResult.success ? '⚔️ 命中！' : '✗ 失敗',
+        verdictCls: atkResult.isSpecial ? 'special'         : atkResult.isFumble ? 'fumble'         : atkResult.success ? 'hit'      : 'miss',
+      });
 
       if (atkResult.isFumble) {
         s.chars[actorIdx].sakanagi = true;
@@ -369,7 +377,13 @@
         const defResult = Core.resolveCheck({ roll: defRoll, targetValue: defTV, plotValue: defPlot, isSakanagi: defender.sakanagi, modifier: defMod });
 
         const modNote = defMod ? `、修正${defMod}` : '';
-        s.log.push(`  回避判定（${defender.name}）: ${defRoll}（TV${defTV}${modNote}）→ ${resultLabel(defResult)}`);
+        s.log.push(`  回避判定（${defender.name}）: ${defRoll.total}（TV${defTV}${modNote}）→ ${resultLabel(defResult)}`);
+        s.lastDiceEvents.push({
+          label: `回避判定（${defender.name}）`,
+          d1: defRoll.d1, d2: defRoll.d2, total: defRoll.total,
+          verdict:    defResult.isSpecial ? '🌟 スペシャル！' : defResult.isFumble ? '💀 ファンブル！' : defResult.success ? '✗ 回避！' : '⚔️ 命中！',
+          verdictCls: defResult.isSpecial ? 'special'         : defResult.isFumble ? 'fumble'         : defResult.success ? 'miss'    : 'hit',
+        });
 
         if (defResult.isFumble) {
           s.chars[defIdx].sakanagi = true;

@@ -1016,9 +1016,8 @@ function battleDoAction(ninjutsuId) {
   }
 
   // 先に新ステートを計算してからアニメーション → 表示
-  const prevLen  = battleState.log.length;
   const newState = NinjaBattleBattle.chooseAction(battleState, ninjutsuId, MD.skills, MD.ninjutsu);
-  const events   = parseDiceEvents(newState.log.slice(prevLen));
+  const events   = newState.lastDiceEvents || [];
 
   function applyState() {
     if (onlineMode) {
