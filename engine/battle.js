@@ -215,8 +215,7 @@
       };
     });
 
-    // 規定ラウンド = 参加キャラクター総数（設計書 5.6）
-    const maxRounds = charSheets.length;
+    const maxRounds = 10;
 
     return {
       phase:    PHASES.PLOT,
