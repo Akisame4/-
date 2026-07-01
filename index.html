@@ -90,6 +90,46 @@ table.skill-tbl input[type=checkbox] { accent-color: #8a6030; width: 13px; heigh
 /* ローディング */
 #loading { position: fixed; inset: 0; background: #111; display: flex; align-items: center; justify-content: center; color: #888; font-size: 1.2em; }
 
+/* ===== ダイスアニメーション ===== */
+#dice-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  cursor: pointer;
+  user-select: none;
+}
+#dice-overlay.active { display: flex; }
+.dice-stage { text-align: center; }
+.dice-action-label {
+  color: #e8c87a;
+  font-size: 0.88em;
+  letter-spacing: 0.12em;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+}
+.dice-wrap { display: flex; gap: 24px; justify-content: center; margin-bottom: 20px; }
+.die {
+  width: 90px; height: 90px;
+  background: #f8f4e8;
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 3em; color: #111;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.4);
+  transition: transform 0.05s;
+}
+.dice-total { font-size: 1.6em; color: #fff; font-weight: bold; min-height: 2em; line-height: 2; }
+.dice-verdict { font-size: 1.4em; font-weight: bold; min-height: 2em; line-height: 2; }
+.dice-verdict.hit     { color: #f99; }
+.dice-verdict.miss    { color: #888; }
+.dice-verdict.special { color: #ffd700; text-shadow: 0 0 16px #ffd700; }
+.dice-verdict.fumble  { color: #f44;    text-shadow: 0 0 16px #f44; }
+.dice-skip-hint { position: absolute; bottom: 28px; font-size: 0.72em; color: #444; }
+
 /* ===== 戦闘画面 ===== */
 .battle-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .char-panel { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
@@ -968,8 +1008,134 @@ function battleDoPlot(charIdx, value) {
   else            BattleApp.choosePlot(charIdx, value);
 }
 function battleDoAction(ninjutsuId) {
-  if (onlineMode) OnlineApp.chooseAction(ninjutsuId);
-  else            BattleApp.chooseAction(ninjutsuId);
+  // パスはアニメーションなし
+  if (ninjutsuId === null) {
+    if (onlineMode) OnlineApp.chooseAction(null);
+    else            BattleApp.chooseAction(null);
+    return;
+  }
+
+  // 先に新ステートを計算してからアニメーション → 表示
+  const prevLen  = battleState.log.length;
+  const newState = NinjaBattleBattle.chooseAction(battleState, ninjutsuId, MD.skills, MD.ninjutsu);
+  const events   = parseDiceEvents(newState.log.slice(prevLen));
+
+  function applyState() {
+    if (onlineMode) {
+      battleState = newState;
+      if (roomRef) roomRef.child('state').set(JSON.stringify(newState));
+    } else {
+      battleState = newState;
+      renderBattle();
+    }
+  }
+
+  if (events.length === 0) { applyState(); return; }
+  showDiceAnimation(events, applyState);
+}
+
+// ===== ダイスアニメーション =====
+
+const DICE_FACES = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+let _diceTimer = null;
+let _diceSkipCb = null;
+
+function splitDice(total) {
+  const min1 = Math.max(1, total - 6);
+  const max1 = Math.min(6, total - 1);
+  const d1 = min1 + Math.floor(Math.random() * (max1 - min1 + 1));
+  return [d1, total - d1];
+}
+
+function parseDiceEvents(entries) {
+  const events = [];
+  for (const line of entries) {
+    const m = line.match(/([命中回避]+判定[^:]*?):\s*(\d+)（TV\d+[^）]*）→\s*(.+)/);
+    if (!m) continue;
+    const label    = m[1].trim();
+    const total    = parseInt(m[2]);
+    const resultStr = m[3].trim();
+    const [d1, d2] = splitDice(total);
+
+    let verdict, verdictCls;
+    if (resultStr.includes('スペシャル'))   { verdict = '🌟 スペシャル！'; verdictCls = 'special'; }
+    else if (resultStr.includes('ファンブル')) { verdict = '💀 ファンブル！';   verdictCls = 'fumble';  }
+    else if (resultStr.includes('成功'))    { verdict = '⚔️ 命中！';       verdictCls = 'hit';     }
+    else                                     { verdict = '✗ 失敗';           verdictCls = 'miss';    }
+
+    events.push({ label, d1, d2, total, verdict, verdictCls });
+  }
+  return events;
+}
+
+function showDiceAnimation(events, onDone) {
+  _diceSkipCb = onDone;
+  let i = 0;
+  function next() {
+    if (i >= events.length) {
+      hideDiceOverlay();
+      _diceSkipCb = null;
+      setTimeout(onDone, 150);
+      return;
+    }
+    animateOneDice(events[i++], () => setTimeout(next, 350));
+  }
+  next();
+}
+
+function animateOneDice({ label, d1, d2, total, verdict, verdictCls }, onDone) {
+  const overlay = document.getElementById('dice-overlay');
+  document.getElementById('dice-label').textContent   = label;
+  document.getElementById('die1').textContent          = DICE_FACES[0];
+  document.getElementById('die2').textContent          = DICE_FACES[0];
+  document.getElementById('die1').style.transform      = '';
+  document.getElementById('die2').style.transform      = '';
+  document.getElementById('dice-total').textContent    = '';
+  document.getElementById('dice-verdict').textContent  = '';
+  document.getElementById('dice-verdict').className    = 'dice-verdict';
+  overlay.classList.add('active');
+
+  const FRAMES = 20;
+  let frame = 0;
+  if (_diceTimer) clearInterval(_diceTimer);
+
+  _diceTimer = setInterval(() => {
+    frame++;
+    if (frame < FRAMES) {
+      document.getElementById('die1').textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+      document.getElementById('die2').textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+      document.getElementById('die1').style.transform = `rotate(${(Math.random()-0.5)*22}deg)`;
+      document.getElementById('die2').style.transform = `rotate(${(Math.random()-0.5)*22}deg)`;
+    } else {
+      clearInterval(_diceTimer); _diceTimer = null;
+      document.getElementById('die1').textContent     = DICE_FACES[d1 - 1];
+      document.getElementById('die2').textContent     = DICE_FACES[d2 - 1];
+      document.getElementById('die1').style.transform = 'rotate(0deg)';
+      document.getElementById('die2').style.transform = 'rotate(0deg)';
+      setTimeout(() => {
+        document.getElementById('dice-total').textContent = `合計 ${total}`;
+        setTimeout(() => {
+          const ve = document.getElementById('dice-verdict');
+          ve.textContent = verdict;
+          ve.className   = 'dice-verdict ' + verdictCls;
+          setTimeout(onDone, 750);
+        }, 200);
+      }, 120);
+    }
+  }, 55);
+}
+
+function hideDiceOverlay() {
+  document.getElementById('dice-overlay').classList.remove('active');
+  if (_diceTimer) { clearInterval(_diceTimer); _diceTimer = null; }
+}
+
+function skipDiceAnimation() {
+  if (!_diceSkipCb) return;
+  hideDiceOverlay();
+  const cb = _diceSkipCb;
+  _diceSkipCb = null;
+  setTimeout(cb, 100);
 }
 function battleDoDmg(field) {
   if (onlineMode) OnlineApp.resolveDamageChoice(field);
@@ -1333,5 +1499,20 @@ function _isMyTurn() {
   return false;
 }
 </script>
+
+<!-- ダイスアニメーションオーバーレイ -->
+<div id="dice-overlay" onclick="skipDiceAnimation()">
+  <div class="dice-stage">
+    <div class="dice-action-label" id="dice-label">判定</div>
+    <div class="dice-wrap">
+      <div class="die" id="die1">⚄</div>
+      <div class="die" id="die2">⚂</div>
+    </div>
+    <div class="dice-total"   id="dice-total"></div>
+    <div class="dice-verdict" id="dice-verdict"></div>
+  </div>
+  <div class="dice-skip-hint">タップ / クリックでスキップ</div>
+</div>
+
 </body>
 </html>
