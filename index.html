@@ -1036,7 +1036,7 @@ let roomListener = null;
 const OnlineApp = {
 
   showHome() {
-    showScreen('screen-online');
+    showScreen('online');
   },
 
   // ===== 部屋を作る =====
@@ -1062,7 +1062,7 @@ const OnlineApp = {
       state: null,
     });
 
-    showScreen('screen-online-room');
+    showScreen('online-room');
     renderOnlineRoomLocal('waiting', null);
     startRoomListener();
   },
@@ -1088,7 +1088,7 @@ const OnlineApp = {
     await roomRef.child('players/1').set({ uid: getMyUid(), charId: null, ready: false, charJson: null });
     await roomRef.child('status').set('selecting');
 
-    showScreen('screen-online-room');
+    showScreen('online-room');
     startRoomListener();
   },
 
@@ -1198,7 +1198,7 @@ function onRoomUpdate(room) {
   if (status === 'battle' && room.state) {
     const newState = JSON.parse(room.state);
     battleState = newState;
-    showScreen('screen-battle');
+    showScreen('battle');
     renderBattle();
 
     // プロット宣言: 両方書かれたらホストが state を更新
