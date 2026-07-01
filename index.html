@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>忍戦</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Hiragino Sans', 'Meiryo', sans-serif; background: #111; color: #ddd; min-height: 100vh; }
+.screen { display: none; padding: 16px; max-width: 1000px; margin: 0 auto; }
+.screen.active { display: block; }
+
+/* 共通 */
+h1 { font-size: 2em; color: #e8c87a; letter-spacing: 0.1em; margin-bottom: 4px; }
+h2 { font-size: 1.3em; color: #e8c87a; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 16px; }
+h3 { font-size: 1em; color: #aaa; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+button { padding: 7px 14px; background: #2a2a2a; color: #ccc; border: 1px solid #444; cursor: pointer; border-radius: 4px; font-size: 0.9em; transition: background 0.15s; }
+button:hover { background: #3a3a3a; }
+button.primary { background: #6a1a1a; border-color: #8a2a2a; color: #fcc; }
+button.primary:hover { background: #7a2a2a; }
+button.selected { background: #4a3010; border-color: #8a6030; color: #e8c87a; }
+button.danger { background: #2a1515; border-color: #5a2525; color: #f88; }
+button.danger:hover { background: #3a1515; }
+input[type=text] { padding: 7px 10px; background: #1e1e1e; color: #ddd; border: 1px solid #444; border-radius: 4px; font-size: 0.95em; width: 260px; }
+input[type=text]:focus { outline: none; border-color: #8a6030; }
+.subtitle { color: #777; font-size: 0.9em; margin-bottom: 16px; }
+
+/* ホーム画面 */
+#char-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.char-card { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+.char-card .info .cname { font-weight: bold; font-size: 1.05em; color: #eee; }
+.char-card .info .csub { font-size: 0.82em; color: #888; margin-top: 3px; }
+.char-card .acts { display: flex; gap: 8px; }
+.empty-msg { color: #555; margin-top: 24px; text-align: center; padding: 32px; border: 1px dashed #333; border-radius: 8px; }
+
+/* 流派ボタン */
+.faction-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.faction-btn { min-width: 130px; text-align: left; padding: 8px 12px; }
+.faction-btn .fname { font-weight: bold; }
+.faction-btn .ffavored { font-size: 0.75em; color: #aaa; }
+.faction-btn.selected .ffavored { color: #c8a060; }
+
+/* カウンター */
+.counter-bar { font-size: 0.88em; color: #888; margin-bottom: 10px; display: flex; gap: 16px; }
+.counter-bar .ok { color: #6a8; }
+.counter-bar .ng { color: #c66; }
+.counter-bar .warn { color: #c96; }
+
+/* 特技テーブル */
+.skill-table-wrap { overflow-x: auto; }
+table.skill-tbl { border-collapse: collapse; font-size: 0.82em; white-space: nowrap; }
+table.skill-tbl th { background: #222; padding: 6px 10px; border: 1px solid #333; color: #aaa; font-weight: normal; min-width: 90px; }
+table.skill-tbl th.favored { background: #2a1e00; color: #e8c87a; }
+table.skill-tbl td { border: 1px solid #252525; padding: 0; }
+table.skill-tbl td label { display: flex; align-items: center; gap: 5px; padding: 4px 8px; cursor: pointer; }
+table.skill-tbl td label:hover { background: #222; }
+table.skill-tbl td.favored label { }
+table.skill-tbl td label.checked { background: #1a2a1a; color: #8c8; }
+table.skill-tbl td.favored label.checked { background: #2a1e00; color: #e8c87a; }
+table.skill-tbl input[type=checkbox] { accent-color: #8a6030; width: 13px; height: 13px; }
+
+/* 忍法カード */
+.nin-section { margin-bottom: 16px; }
+.nin-section h4 { font-size: 0.88em; color: #777; margin-bottom: 8px; letter-spacing: 0.05em; }
+.nin-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+.nin-card { width: 210px; border: 1px solid #333; border-radius: 5px; padding: 8px 10px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.nin-card:hover { border-color: #555; }
+.nin-card.selected { border-color: #8a6030; background: #1a1400; }
+.nin-card.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+.nin-card .nname { font-weight: bold; font-size: 0.9em; }
+.nin-card .nread { font-size: 0.73em; color: #666; }
+.nin-card .nmeta { font-size: 0.75em; color: #888; margin-top: 4px; }
+.nin-card .neff { font-size: 0.72em; color: #999; margin-top: 4px; line-height: 1.4; max-height: 54px; overflow: hidden; }
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 0.7em; margin-left: 4px; }
+.badge.attack  { background: #3a1010; color: #f99; }
+.badge.support { background: #10203a; color: #9af; }
+.badge.equip   { background: #102a10; color: #9f9; }
+.badge.faction { background: #2a1a00; color: #e8a; }
+
+/* 霞身選択 */
+.kasumimi-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; background: #1a1a00; padding: 8px 12px; border-radius: 4px; border: 1px solid #444; }
+.kasumimi-row label { font-size: 0.9em; color: #e8c87a; }
+.kasumimi-row select { background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; font-size: 0.9em; }
+
+/* バリデーション */
+.val-errors { margin-top: 12px; padding: 10px 14px; background: #200a0a; border: 1px solid #5a2020; border-radius: 4px; }
+.val-errors li { color: #f88; font-size: 0.88em; margin-bottom: 4px; list-style: none; }
+.val-errors li::before { content: '✕ '; }
+
+/* ローディング */
+#loading { position: fixed; inset: 0; background: #111; display: flex; align-items: center; justify-content: center; color: #888; font-size: 1.2em; }
+
+/* ===== 戦闘画面 ===== */
+.battle-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.char-panel { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
+.char-panel .cp-name { font-weight: bold; font-size: 1.05em; color: #eee; }
+.char-panel .cp-sub { font-size: 0.8em; color: #888; }
+.char-panel .cp-plot { display: inline-block; background: #2a2200; border: 1px solid #5a4a10; color: #e8c87a; padding: 1px 8px; border-radius: 3px; font-size: 0.85em; margin-top: 4px; }
+.char-panel.is-sakanagi { border-color: #7a1010; }
+.sakanagi-badge { color: #f55; font-size: 0.78em; margin-left: 6px; }
+.hp-grid { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0; }
+.hp-slot { width: 44px; height: 38px; border-radius: 4px; border: 1px solid #444; display: flex; align-items: center; justify-content: center; font-size: 0.7em; text-align: center; line-height: 1.2; }
+.hp-slot.ok { background: #102010; border-color: #2a4a2a; color: #7b7; }
+.hp-slot.damaged { background: #1e0808; border-color: #4a1a1a; color: #663; }
+.hp-slot.extra.ok { background: #101428; border-color: #283048; color: #88b; }
+.conditions-row { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
+.cond-tag { padding: 1px 7px; border-radius: 3px; font-size: 0.73em; background: #2a1a00; color: #c87; border: 1px solid #4a3a10; }
+.cond-tag.severe { background: #2a0808; color: #f88; border-color: #5a1818; }
+
+/* プロット選択 */
+.plot-section { margin-bottom: 12px; }
+.plot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.plot-row .pr-name { min-width: 90px; font-size: 0.9em; }
+.plot-btns { display: flex; gap: 4px; }
+.plot-btn { width: 38px; height: 34px; font-weight: bold; padding: 0; font-size: 0.95em; }
+.plot-btn.chosen { background: #4a2800; border-color: #7a5010; color: #e8c87a; }
+.plot-chosen-label { color: #e8c87a; font-size: 0.9em; }
+
+/* 行動選択 */
+.action-header { color: #e8c87a; font-size: 0.95em; margin-bottom: 10px; }
+.action-ninjutsu { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.a-nin-card { width: 185px; border: 1px solid #333; border-radius: 5px; padding: 8px; cursor: pointer; }
+.a-nin-card:hover:not(.disabled) { border-color: #8a6030; background: #1a1400; }
+.a-nin-card.disabled { opacity: 0.35; cursor: not-allowed; }
+.a-nin-card .nn { font-weight: bold; font-size: 0.88em; }
+.a-nin-card .nmeta { font-size: 0.72em; color: #888; margin-top: 2px; }
+.a-nin-card .nreason { font-size: 0.7em; color: #b55; margin-top: 2px; }
+.a-nin-card .neff { font-size: 0.7em; color: #999; margin-top: 3px; max-height: 40px; overflow: hidden; }
+.phase-box { background: #141414; border: 1px solid #333; border-radius: 6px; padding: 14px; margin-bottom: 12px; }
+.phase-label { font-size: 0.8em; color: #888; letter-spacing: 0.1em; margin-bottom: 8px; }
+
+/* ダメージ選択 */
+.dmg-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* バトルログ */
+.battle-log-area { background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 5px; padding: 10px 12px; max-height: 200px; overflow-y: auto; font-size: 0.78em; font-family: monospace; line-height: 1.7; margin-top: 10px; }
+.battle-log-area .ll { color: #777; }
+.battle-log-area .ll.round { color: #e8c87a; }
+.battle-log-area .ll.atk { color: #f99; }
+.battle-log-area .ll.dmg { color: #f66; }
+
+/* 対戦セットアップ */
+.setup-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.setup-char-btn { padding: 8px 14px; text-align: left; }
+.bf-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div id="loading">読み込み中…</div>
+
+<div id="app" style="display:none">
+
+  <!-- ===== ホーム画面 ===== -->
+  <div id="screen-home" class="screen active">
+    <h1>忍戦</h1>
+    <p class="subtitle">シノビガミ戦闘システム準拠・多チーム対戦</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+      <button class="primary" onclick="App.showCreate()">＋ キャラクター作成</button>
+      <button onclick="OnlineApp.showHome()">🌐 オンライン対戦</button>
+    </div>
+    <h3>作成済みキャラクター</h3>
+    <div id="char-list"></div>
+  </div>
+
+  <!-- ===== キャラクター作成・編集画面 ===== -->
+  <div id="screen-create" class="screen">
+    <h2 id="create-title">キャラクター作成</h2>
+
+    <!-- 流派 -->
+    <h3>流派</h3>
+    <div id="faction-area" class="faction-grid"></div>
+
+    <!-- 特技 -->
+    <h3>特技 <span style="font-weight:normal;color:#666">（得意分野から3つ以上、計6つ）</span></h3>
+    <div id="skill-counter" class="counter-bar"></div>
+    <div class="skill-table-wrap">
+      <table class="skill-tbl" id="skill-tbl"></table>
+    </div>
+
+    <!-- 忍法 -->
+    <h3>忍法 <span style="font-weight:normal;color:#666">（4〜6個、流派忍法を最低1つ）</span></h3>
+    <div id="nin-counter" class="counter-bar"></div>
+    <div id="nin-area"></div>
+
+    <!-- 霞身：修得時に変調耐性を選択 -->
+    <div id="kasumi-area" style="display:none">
+      <div class="kasumimi-row">
+        <label>霞身 — 無効にする変調を選択：</label>
+        <select id="kasumi-select">
+          <option value="">選択してください</option>
+          <option value="敗走">敗走</option>
+          <option value="マヒ">マヒ</option>
+          <option value="重傷">重傷</option>
+          <option value="行方不明">行方不明</option>
+          <option value="忘却">忘却</option>
+          <option value="呪い">呪い</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 名前 -->
+    <h3>キャラクター名</h3>
+    <input type="text" id="char-name" maxlength="20" placeholder="名前を入力（最大20文字）">
+
+    <!-- バリデーション -->
+    <div id="val-area"></div>
+
+    <!-- ボタン -->
+    <div style="margin-top:20px; display:flex; gap:10px;">
+      <button class="primary" onclick="App.saveCharacter()">保存</button>
+      <button onclick="App.showHome()">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- ===== オンライン対戦ホーム ===== -->
+  <div id="screen-online" class="screen">
+    <h2>オンライン対戦</h2>
+    <p class="subtitle">相手と同じ部屋コードを共有して対戦</p>
+    <div style="display:flex;flex-direction:column;gap:14px;max-width:340px;margin-top:16px">
+      <button class="primary" style="padding:12px 20px;font-size:1em" onclick="OnlineApp.createRoom()">
+        部屋を作る（ホスト）
+      </button>
+      <div style="border-top:1px solid #333;padding-top:14px">
+        <p style="font-size:0.85em;color:#888;margin-bottom:8px">部屋コードを持っている場合：</p>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="room-code-input" placeholder="例: A3K7" maxlength="4"
+            style="width:120px;text-transform:uppercase;font-size:1.1em;letter-spacing:0.2em"
+            oninput="this.value=this.value.toUpperCase()">
+          <button onclick="OnlineApp.joinRoom()" class="primary">参加する</button>
+        </div>
+      </div>
+      <button onclick="App.showHome()">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- ===== オンライン待機室・キャラ選択 ===== -->
+  <div id="screen-online-room" class="screen">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin-bottom:0;border-bottom:none">待機室</h2>
+      <button onclick="OnlineApp.leaveRoom()" style="font-size:0.8em">退室する</button>
+    </div>
+    <div id="online-room-content"></div>
+  </div>
+
+  <!-- ===== 対戦セットアップ画面 ===== -->
+  <div id="screen-battle-setup" class="screen">
+    <h2>対戦セットアップ</h2>
+    <div id="battle-setup-content"></div>
+  </div>
+
+  <!-- ===== 戦闘画面 ===== -->
+  <div id="screen-battle" class="screen">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 id="battle-title" style="margin-bottom:0;border-bottom:none">忍戦</h2>
+      <button onclick="battleDoBack()" style="font-size:0.8em">← ホームへ</button>
+    </div>
+
+    <!-- キャラクターステータス -->
+    <div class="battle-layout">
+      <div id="char-panel-0" class="char-panel"></div>
+      <div id="char-panel-1" class="char-panel"></div>
+    </div>
+
+    <!-- フェーズUI -->
+    <div id="battle-phase-ui"></div>
+
+    <!-- バトルログ -->
+    <div style="font-size:0.78em;color:#666;margin-top:12px;margin-bottom:4px">戦闘ログ</div>
+    <div id="battle-log" class="battle-log-area"></div>
+  </div>
+
+</div><!-- #app -->
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="engine/core.js"></script>
+<script src="engine/character.js"></script>
+<script src="engine/battle.js"></script>
+<script>
+'use strict';
+
+// ===== マスターデータ =====
+let MD = null; // { fields, skills, skillsByField, factions, ninjutsu }
+
+// ===== 作成フォーム状態 =====
+let editingId  = null;
+let selFaction = null;
+let selSkills  = new Set(); // skill name
+let selNin     = new Set(); // ninjutsu id
+
+// ===== 画面切り替え =====
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+// ===== App =====
+
+const App = {
+  showHome() {
+    showScreen('home');
+    renderHome();
+  },
+
+  showCreate(charId) {
+    editingId = charId || null;
+    if (charId) {
+      const c = NinjaBattleCharacter.getCharacterById(charId);
+      selFaction = c.factionId;
+      selSkills  = new Set(c.skillNames);
+      selNin     = new Set(c.ninjutsuIds);
+      document.getElementById('char-name').value = c.name;
+      document.getElementById('kasumi-select').value = (c.immuneConditions || [])[0] || '';
+      document.getElementById('create-title').textContent = 'キャラクター編集';
+    } else {
+      selFaction = null;
+      selSkills  = new Set();
+      selNin     = new Set();
+      document.getElementById('char-name').value = '';
+      document.getElementById('kasumi-select').value = '';
+      document.getElementById('create-title').textContent = 'キャラクター作成';
+    }
+    showScreen('create');
+    renderCreate();
+  },
+
+  selectFaction(id) {
+    if (selFaction !== id) {
+      selFaction = id;
+      selSkills  = new Set();
+      selNin     = new Set();
+    }
+    renderCreate();
+  },
+
+  toggleSkill(name) {
+    if (selSkills.has(name)) {
+      selSkills.delete(name);
+    } else if (selSkills.size < 6) {
+      selSkills.add(name);
+    }
+    updateSkillUI();
+  },
+
+  toggleNin(id) {
+    if (selNin.has(id)) {
+      selNin.delete(id);
+    } else if (selNin.size < 6) {
+      selNin.add(id);
+    }
+    updateNinUI();
+  },
+
+  saveCharacter() {
+    const name = document.getElementById('char-name').value;
+    const kasumiVal = document.getElementById('kasumi-select').value;
+    const hasKasumi = [...selNin].some(id => {
+      const n = MD.ninjutsu.find(x => x.id === id);
+      return n && n.name === '霞身';
+    });
+
+    const result = NinjaBattleCharacter.createCharacter(
+      {
+        id: editingId || undefined,
+        name,
+        factionId: selFaction,
+        skillNames: [...selSkills],
+        ninjutsuIds: [...selNin],
+      },
+      { factionsData: MD.factions, skillsData: MD.skills, ninjutsuData: MD.ninjutsu }
+    );
+
+    if (!result.success) {
+      renderValidation(result.errors);
+      return;
+    }
+
+    // 霞身の免疫変調を設定
+    if (hasKasumi && kasumiVal) {
+      result.character.immuneConditions = [kasumiVal];
+    }
+
+    NinjaBattleCharacter.saveCharacter(result.character);
+    App.showHome();
+  },
+
+  deleteCharacter(id) {
+    if (!confirm('このキャラクターを削除しますか？')) return;
+    NinjaBattleCharacter.deleteCharacter(id);
+    renderHome();
+  },
+};
+
+// ===== レンダリング =====
+
+function renderHome() {
+  const chars = NinjaBattleCharacter.loadCharacters();
+  const list  = document.getElementById('char-list');
+
+  if (chars.length === 0) {
+    list.innerHTML = '<div class="empty-msg">作成済みキャラクターがありません。<br>「キャラクター作成」ボタンから作成してください。</div>';
+    return;
+  }
+
+  list.innerHTML = chars.map(c => {
+    const nin = (c.ninjutsuIds || []).map(id => {
+      const n = MD && MD.ninjutsu.find(x => x.id === id);
+      return n ? n.name : id;
+    }).join('、');
+    const skills = (c.skillNames || []).join('・');
+    return `
+      <div class="char-card">
+        <div class="info">
+          <div class="cname">${esc(c.name)}</div>
+          <div class="csub">${esc(c.factionName || '')}　HP: ${c.hpMax}　特技: ${esc(skills)}</div>
+          <div class="csub" style="margin-top:2px">忍法: ${esc(nin)}</div>
+        </div>
+        <div class="acts">
+          <button class="primary" onclick="BattleApp.showSetup('${c.id}')">VS</button>
+          <button onclick="App.showCreate('${c.id}')">編集</button>
+          <button class="danger" onclick="App.deleteCharacter('${c.id}')">削除</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCreate() {
+  renderFactionArea();
+  renderSkillTable();
+  renderNinjutsuArea();
+  updateSkillUI();
+  updateNinUI();
+  document.getElementById('val-area').innerHTML = '';
+}
+
+function renderFactionArea() {
+  const el = document.getElementById('faction-area');
+  el.innerHTML = MD.factions.map(f => {
+    const sel = selFaction === f.id ? 'selected' : '';
+    return `<button class="faction-btn ${sel}" onclick="App.selectFaction('${f.id}')">
+      <div class="fname">${esc(f.name)}</div>
+      <div class="ffavored">得意: ${esc(f.favored_field)}</div>
+    </button>`;
+  }).join('');
+}
+
+function renderSkillTable() {
+  const tbl = document.getElementById('skill-tbl');
+  const faction = selFaction ? MD.factions.find(f => f.id === selFaction) : null;
+  const favoredField = faction ? faction.favored_field : null;
+
+  // ヘッダー
+  let html = '<thead><tr>';
+  MD.fields.forEach(f => {
+    const fav = f.name === favoredField ? 'favored' : '';
+    html += `<th class="${fav}">${esc(f.name)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  // 11行
+  for (let row = 1; row <= 11; row++) {
+    html += '<tr>';
+    MD.fields.forEach(f => {
+      const skill = MD.skillsByField[f.name][row - 1];
+      const fav   = f.name === favoredField ? 'favored' : '';
+      const chk   = selSkills.has(skill.name) ? 'checked' : '';
+      html += `<td class="${fav}">
+        <label class="${chk}">
+          <input type="checkbox" ${chk ? 'checked' : ''}
+            onchange="App.toggleSkill('${esc(skill.name)}')">
+          ${esc(skill.name)}
+        </label>
+      </td>`;
+    });
+    html += '</tr>';
+  }
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function updateSkillUI() {
+  // チェックボックスの視覚状態を更新
+  document.querySelectorAll('#skill-tbl td label').forEach(label => {
+    const cb   = label.querySelector('input[type=checkbox]');
+    const name = cb.getAttribute('onchange').match(/'(.+?)'/)?.[1];
+    if (!name) return;
+    const checked = selSkills.has(name);
+    cb.checked = checked;
+    label.classList.toggle('checked', checked);
+    // 6つ選択済みかつ未選択のチェックボックスは無効化
+    cb.disabled = !checked && selSkills.size >= 6;
+  });
+
+  const faction    = selFaction ? MD.factions.find(f => f.id === selFaction) : null;
+  const favored    = faction ? faction.favored_field : null;
+  const favoredCnt = favored
+    ? [...selSkills].filter(n => MD.skills.find(s => s.name === n)?.field === favored).length
+    : 0;
+  const total = selSkills.size;
+
+  const cntEl = document.getElementById('skill-counter');
+  if (!selFaction) {
+    cntEl.innerHTML = '<span class="warn">流派を選択してください</span>';
+    return;
+  }
+  const favClass  = favoredCnt >= 3 ? 'ok' : 'ng';
+  const totClass  = total === 6     ? 'ok' : (total > 6 ? 'ng' : 'warn');
+  cntEl.innerHTML = `
+    <span class="${favClass}">得意分野(${esc(favored)}): ${favoredCnt}/3以上</span>
+    <span class="${totClass}">合計: ${total}/6</span>`;
+}
+
+function renderNinjutsuArea() {
+  const area = document.getElementById('nin-area');
+  if (!selFaction) {
+    area.innerHTML = '<div style="color:#555">流派を選択すると忍法一覧が表示されます</div>';
+    return;
+  }
+
+  const faction      = MD.factions.find(f => f.id === selFaction);
+  const generalNin   = MD.ninjutsu.filter(n => n.availability === 'general');
+  const factionNin   = MD.ninjutsu.filter(n => n.availability === 'faction' && n.faction === faction.name);
+
+  area.innerHTML =
+    ninSection('汎用忍法', generalNin) +
+    ninSection(`${faction.name} 流派忍法`, factionNin, true);
+}
+
+function ninSection(label, list, isFaction) {
+  if (list.length === 0) return '';
+  const cards = list.map(n => ninCard(n, isFaction)).join('');
+  return `<div class="nin-section"><h4>${esc(label)}</h4><div class="nin-cards">${cards}</div></div>`;
+}
+
+function ninCard(n, isFaction) {
+  const sel = selNin.has(n.id) ? 'selected' : '';
+  const dis = !selNin.has(n.id) && selNin.size >= 6 ? 'disabled' : '';
+  const typeBadge  = `<span class="badge ${n.type}">${typeName(n.type)}</span>`;
+  const facBadge   = isFaction ? '<span class="badge faction">流派</span>' : '';
+  const multi      = n.multiple ? ' <span style="color:#888;font-size:0.75em">※複数可</span>' : '';
+  const range      = n.range !== null && n.range !== undefined ? `間合${n.range}` : '-';
+  const cost       = `C${n.cost || 0}`;
+  const skill      = n.skill || '-';
+  const timing     = n.timing ? `<br>タイミング: ${esc(n.timing)}` : '';
+
+  return `<div class="nin-card ${sel} ${dis}" onclick="App.toggleNin('${n.id}')">
+    <div class="nname">${esc(n.name)}${typeBadge}${facBadge}${multi}</div>
+    <div class="nread">${esc(n.reading || '')}</div>
+    <div class="nmeta">${range} | ${cost} | ${esc(skill)}${timing}</div>
+    <div class="neff">${esc(n.effect || '')}</div>
+  </div>`;
+}
+
+function typeName(t) {
+  return t === 'attack' ? '攻撃' : t === 'support' ? 'サポート' : '装備';
+}
+
+function updateNinUI() {
+  const total = selNin.size;
+
+  // 霞身が選択されているか
+  const hasKasumi = [...selNin].some(id => {
+    const n = MD.ninjutsu.find(x => x.id === id);
+    return n && n.name === '霞身';
+  });
+  document.getElementById('kasumi-area').style.display = hasKasumi ? 'block' : 'none';
+
+  const faction   = selFaction ? MD.factions.find(f => f.id === selFaction) : null;
+  const facNinCnt = faction
+    ? [...selNin].filter(id => {
+        const n = MD.ninjutsu.find(x => x.id === id);
+        return n && n.availability === 'faction' && n.faction === faction.name;
+      }).length
+    : 0;
+
+  const totClass = total >= 4 && total <= 6 ? 'ok' : 'ng';
+  const facClass = facNinCnt >= 1          ? 'ok' : 'ng';
+  const el = document.getElementById('nin-counter');
+  if (!selFaction) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <span class="${totClass}">個数: ${total}/4〜6</span>
+    <span class="${facClass}">流派忍法: ${facNinCnt}/1以上</span>`;
+
+  // カードの選択不可状態を更新
+  document.querySelectorAll('.nin-card').forEach(card => {
+    const id = card.getAttribute('onclick')?.match(/'(.+?)'/)?.[1];
+    if (!id) return;
+    const isSelected = selNin.has(id);
+    card.classList.toggle('selected', isSelected);
+    card.classList.toggle('disabled', !isSelected && total >= 6);
+  });
+}
+
+function renderValidation(errors) {
+  if (!errors || errors.length === 0) {
+    document.getElementById('val-area').innerHTML = '';
+    return;
+  }
+  document.getElementById('val-area').innerHTML =
+    '<div class="val-errors"><ul>' +
+    errors.map(e => `<li>${esc(e)}</li>`).join('') +
+    '</ul></div>';
+}
+
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ===== 初期化 =====
+
+async function init() {
+  try {
+    const [sj, fj, nj] = await Promise.all([
+      fetch('./data/skills.json').then(r => r.json()),
+      fetch('./data/factions.json').then(r => r.json()),
+      fetch('./data/ninjutsu.json').then(r => r.json()),
+    ]);
+
+    // 特技を分野ごとに row 順でグルーピング
+    const skillsByField = {};
+    sj.fields.forEach(f => {
+      skillsByField[f.name] = sj.skills
+        .filter(s => s.field === f.name)
+        .sort((a, b) => a.row - b.row);
+    });
+
+    MD = {
+      fields: sj.fields,
+      skills: sj.skills,
+      skillsByField,
+      factions: fj.factions,
+      // battle_usable=false の忍法はキャラクター作成画面にも出さない
+      ninjutsu: nj.ninjutsu.filter(n => n.battle_usable !== false),
+    };
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    renderHome();
+  } catch (e) {
+    document.getElementById('loading').innerHTML =
+      '<span style="color:#f66">データ読み込み失敗: ' + e.message +
+      '<br><small>ローカルサーバ経由で開いてください（file://不可）</small></span>';
+  }
+}
+
+init();
+
+// ===================================================================
+// ===== 戦闘システム =====
+// ===================================================================
+
+let battleState = null;
+let battleChar1Id = null;
+
+const BattleApp = {
+
+  // ===== セットアップ =====
+
+  showSetup(charId) {
+    battleChar1Id = charId;
+    const chars = NinjaBattleCharacter.loadCharacters();
+    const c1 = chars.find(c => c.id === charId);
+    if (!c1) return;
+
+    const others = chars.filter(c => c.id !== charId);
+    const bfOptions = NinjaBattleCore.BATTLEFIELDS.map(bf =>
+      `<button class="setup-char-btn selected" style="min-width:90px"
+         onclick="BattleApp.setBf('${bf.id}',this)">${esc(bf.name)}</button>`
+    ).join('');
+
+    document.getElementById('battle-setup-content').innerHTML = `
+      <p style="color:#888;margin-bottom:12px">先攻キャラクター: <strong style="color:#eee">${esc(c1.name)}</strong>（${esc(c1.factionName)}）</p>
+      <h3>対戦相手を選ぶ</h3>
+      ${others.length === 0
+        ? '<p style="color:#666">キャラクターが1体しかいません。もう1体作成してください。</p>'
+        : `<div class="setup-grid">${others.map(c =>
+            `<button class="setup-char-btn selected"
+               onclick="BattleApp.startBattle('${c.id}')">
+               ${esc(c.name)}<br><span style="font-size:0.8em;color:#888">${esc(c.factionName)}</span>
+             </button>`
+          ).join('')}</div>`
+      }
+      <h3 style="margin-top:16px">戦場を選ぶ</h3>
+      <div class="bf-grid" id="bf-select">${bfOptions}</div>
+      <p id="bf-note" style="font-size:0.8em;color:#888;margin-top:4px">
+        （選択なし = 平地）
+      </p>
+      <div style="margin-top:16px">
+        <button onclick="App.showHome()">キャンセル</button>
+      </div>`;
+
+    // デフォルト: 平地を選択済みに
+    BattleApp._selectedBf = 'hirachi';
+    showScreen('battle-setup');
+  },
+
+  _selectedBf: 'hirachi',
+
+  setBf(bfId, btn) {
+    BattleApp._selectedBf = bfId;
+    document.querySelectorAll('#bf-select button').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  },
+
+  startBattle(char2Id) {
+    const chars = NinjaBattleCharacter.loadCharacters();
+    const c1 = chars.find(c => c.id === battleChar1Id);
+    const c2 = chars.find(c => c.id === char2Id);
+    if (!c1 || !c2) return;
+
+    battleState = NinjaBattleBattle.initBattle(
+      [c1, c2], BattleApp._selectedBf || null, MD.skills, MD.ninjutsu
+    );
+    showScreen('battle');
+    renderBattle();
+  },
+
+  // ===== 戦闘操作 =====
+
+  choosePlot(charIdx, value) {
+    battleState = NinjaBattleBattle.choosePlot(battleState, charIdx, value);
+    renderBattle();
+  },
+
+  chooseAction(ninjutsuId) {
+    battleState = NinjaBattleBattle.chooseAction(
+      battleState, ninjutsuId, MD.skills, MD.ninjutsu
+    );
+    renderBattle();
+  },
+
+  resolveDamageChoice(field) {
+    battleState = NinjaBattleBattle.resolveDamageChoice(battleState, field);
+    renderBattle();
+  },
+
+  advanceRoundEnd() {
+    battleState = NinjaBattleBattle.advanceRoundEnd(battleState);
+    renderBattle();
+  },
+
+  backToHome() {
+    battleState = null;
+    App.showHome();
+  },
+};
+
+// ===== 戦闘レンダリング =====
+
+function renderBattle() {
+  if (!battleState) return;
+  document.getElementById('battle-title').textContent =
+    `忍戦　第${battleState.round}ラウンド`;
+
+  renderCharPanels();
+  renderPhaseUI();
+  renderBattleLog();
+}
+
+function renderCharPanels() {
+  battleState.chars.forEach((c, i) => {
+    const panel = document.getElementById(`char-panel-${i}`);
+    const hp    = NinjaBattleCore.getHpCurrent(c.hpSlots);
+    const hpMax = c.hpSlots.length;
+    const saka  = c.sakanagi ? `<span class="sakanagi-badge">⚡逆凪</span>` : '';
+    const plotLabel = c.plotValue !== null
+      ? `<span class="cp-plot">プロット ${c.plotValue}</span>` : '';
+
+    const slots = c.hpSlots.map(sl => {
+      const cls  = sl.damaged ? 'damaged' : 'ok';
+      const ext  = sl.isBase ? '' : ' extra';
+      const lbl  = sl.field || '拡張';
+      return `<div class="hp-slot ${cls}${ext}" title="${esc(lbl)}">${esc(lbl)}</div>`;
+    }).join('');
+
+    const conds = c.conditions.length === 0 && !c.sakanagi
+      ? '<span style="color:#444;font-size:0.75em">変調なし</span>'
+      : c.conditions.map(cn => {
+          const sev = ['重傷','行方不明'].includes(cn) ? ' severe' : '';
+          return `<span class="cond-tag${sev}">${esc(cn)}</span>`;
+        }).join('') + saka;
+
+    const isActive = battleState.phase === 'action' &&
+      battleState.actionOrder[battleState.currentActionIdx] === i;
+    panel.className = 'char-panel' + (c.sakanagi ? ' is-sakanagi' : '') + (isActive ? '' : '');
+    panel.style.borderColor = isActive ? '#8a6030' : '';
+
+    panel.innerHTML = `
+      <div class="cp-name">${esc(c.name)}</div>
+      <div class="cp-sub">${esc(c.factionName || '')}　HP: ${hp}/${hpMax}</div>
+      ${plotLabel}
+      <div class="hp-grid">${slots}</div>
+      <div class="conditions-row">${conds}</div>`;
+  });
+}
+
+function renderPhaseUI() {
+  const el = document.getElementById('battle-phase-ui');
+  const s  = battleState;
+
+  if (s.phase === NinjaBattleBattle.PHASES.PLOT) {
+    el.innerHTML = renderPlotUI(s);
+  } else if (s.phase === NinjaBattleBattle.PHASES.ACTION) {
+    el.innerHTML = renderActionUI(s);
+  } else if (s.phase === NinjaBattleBattle.PHASES.DAMAGE_CHOICE) {
+    el.innerHTML = renderDamageChoiceUI(s);
+  } else if (s.phase === NinjaBattleBattle.PHASES.ROUND_END) {
+    el.innerHTML = renderRoundEndUI(s);
+  } else if (s.phase === NinjaBattleBattle.PHASES.ENDED) {
+    el.innerHTML = renderEndedUI(s);
+  }
+}
+
+function renderPlotUI(s) {
+  const rows = s.chars.map((c, i) => {
+    const isMyRow = !onlineMode || i === myPlayerIdx;
+    if (c.plotValue !== null || (onlineMode && i !== myPlayerIdx && s.chars[myPlayerIdx].plotValue !== null)) {
+      const label = (onlineMode && i !== myPlayerIdx)
+        ? (c.plotValue !== null ? '選択済み（公開待ち）' : '相手が選択中…')
+        : '選択済み（公開待ち）';
+      return `<div class="plot-row">
+        <span class="pr-name">${esc(c.name)}</span>
+        <span class="plot-chosen-label">${label}</span>
+      </div>`;
+    }
+    if (!isMyRow) {
+      return `<div class="plot-row">
+        <span class="pr-name">${esc(c.name)}</span>
+        <span style="color:#555;font-size:0.85em">相手が選択中…</span>
+      </div>`;
+    }
+    const btns = [1,2,3,4,5,6].map(v =>
+      `<button class="plot-btn" onclick="battleDoPlot(${i},${v})">${v}</button>`
+    ).join('');
+    return `<div class="plot-row">
+      <span class="pr-name">${esc(c.name)}${onlineMode ? '（あなた）' : ''}</span>
+      <div class="plot-btns">${btns}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="phase-box">
+    <div class="phase-label">プロット宣言フェーズ</div>
+    <p style="font-size:0.85em;color:#888;margin-bottom:10px">1〜6 を秘密裏に選択。高い方が先行。</p>
+    <div class="plot-section">${rows}</div>
+  </div>`;
+}
+
+function renderActionUI(s) {
+  const actorIdx = NinjaBattleBattle.getCurrentActorIdx(s);
+  if (actorIdx === undefined) return '';
+  const actor = s.chars[actorIdx];
+
+  const available = NinjaBattleBattle.getAvailableNinjutsu(s, MD.skills, MD.ninjutsu);
+  const ninCards = available.map(a => {
+    const n = a.ninjutsu;
+    if (!n) return '';
+    const dis    = a.canUse ? '' : ' disabled';
+    const reason = a.reason ? `<div class="nreason">${esc(a.reason)}</div>` : '';
+    const range  = n.range != null ? `間合${n.range}` : '-';
+    const badge  = n.type === 'attack' ? '攻' : n.type === 'support' ? '援' : '装';
+    const eff    = n.effect ? n.effect.slice(0, 60) + '…' : '';
+    return `<div class="a-nin-card${dis}" onclick="${a.canUse ? `battleDoAction('${a.id}')` : ''}">
+      <div class="nn">[${badge}] ${esc(n.name)}</div>
+      <div class="nmeta">${range} | C${n.cost||0} | ${esc(n.skill||'-')}</div>
+      ${reason}
+      <div class="neff">${esc(eff)}</div>
+    </div>`;
+  }).join('');
+
+  const defIdx   = actorIdx === 0 ? 1 : 0;
+  const dist     = Math.abs((actor.plotValue||0) - (s.chars[defIdx].plotValue||0));
+  const myTurn   = _isMyTurn();
+  const waitMsg  = onlineMode && !myTurn
+    ? `<p style="color:#888;margin-top:8px">相手（${esc(actor.name)}）のターンです。待機中…</p>` : '';
+  return `<div class="phase-box">
+    <div class="phase-label">行動フェーズ</div>
+    <p class="action-header">${esc(actor.name)} のターン
+      （プロット: ${actor.plotValue} ／ 対${esc(s.chars[defIdx].name)} 距離: ${dist}）
+      ${onlineMode && myTurn ? '<span style="color:#6c6;font-size:0.8em">← あなたのターン</span>' : ''}
+    </p>
+    ${waitMsg}
+    ${myTurn ? `<div class="action-ninjutsu">${ninCards}</div>
+    <button onclick="battleDoAction(null)">パス（何もしない）</button>` : ''}
+  </div>`;
+}
+
+function renderDamageChoiceUI(s) {
+  const { defIdx, damageType, randomField, availableFields } = s.pendingDamageChoice;
+  const defender = s.chars[defIdx];
+  const typeLabel = damageType === 'melee' ? '接近戦' : '射撃戦';
+  const note = damageType === 'melee'
+    ? `ランダム決定分野: <strong>${esc(randomField)}</strong>（スロットが埋まっているため選択）`
+    : '受けるスロットを自由に選択してください';
+  const isDefender = _isMyTurn();
+  const btns = availableFields.map(f =>
+    `<button class="dmg-field-btn" onclick="battleDoDmg('${esc(f)}')">${esc(f||'拡張')}</button>`
+  ).join('');
+  return `<div class="phase-box">
+    <div class="phase-label">ダメージ選択</div>
+    <p style="margin-bottom:8px">${esc(defender.name)} が${typeLabel}ダメージを受ける分野を選択</p>
+    <p style="font-size:0.85em;color:#aaa;margin-bottom:8px">${note}</p>
+    ${isDefender
+      ? `<div class="dmg-btns">${btns}</div>`
+      : `<p style="color:#888">${esc(defender.name)}（相手）がスロットを選択中…</p>`}
+  </div>`;
+}
+
+function renderRoundEndUI(s) {
+  const summary = s.chars.map(c => {
+    const hp = NinjaBattleCore.getHpCurrent(c.hpSlots);
+    return `${esc(c.name)}: HP ${hp}`;
+  }).join('　');
+  return `<div class="phase-box">
+    <div class="phase-label">ラウンド ${s.round} 終了</div>
+    <p style="margin-bottom:12px">${summary}</p>
+    ${_isMyTurn()
+      ? (s.round < s.maxRounds
+          ? `<button class="primary" onclick="battleDoAdvance()">次のラウンドへ（第${s.round+1}ラウンド）</button>`
+          : `<button class="primary" onclick="battleDoAdvance()">結果を確認する</button>`)
+      : `<p style="color:#888">ホスト側の操作待ちです…</p>`
+    }
+  </div>`;
+}
+
+function renderEndedUI(s) {
+  const winnerName = s.winner !== null ? s.chars[s.winner].name : '引き分け';
+  const hps = s.chars.map(c => {
+    const hp = NinjaBattleCore.getHpCurrent(c.hpSlots);
+    return `${esc(c.name)}: ${hp}HP`;
+  }).join('　');
+  return `<div class="phase-box" style="border-color:#4a3010">
+    <div class="phase-label">戦闘終了</div>
+    <p style="font-size:1.2em;color:#e8c87a;margin-bottom:8px">
+      ${s.winner !== null ? `🏆 ${esc(winnerName)} の勝利！` : '⚖️ 引き分け'}
+    </p>
+    <p style="font-size:0.85em;color:#aaa;margin-bottom:12px">最終HP: ${hps}</p>
+    <button onclick="battleDoBack()">ホームへ戻る</button>
+  </div>`;
+}
+
+function renderBattleLog() {
+  const log  = battleState ? battleState.log : [];
+  const el   = document.getElementById('battle-log');
+  el.innerHTML = log.map(line => {
+    const cls = line.startsWith('===') ? 'round'
+              : line.includes('ダメージ') ? 'dmg'
+              : line.includes('成功') || line.includes('スペシャル') ? 'atk'
+              : '';
+    return `<div class="ll ${cls}">${esc(line)}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ===================================================================
+// ===== ローカル/オンライン 振り分けルーティング =====
+// ===================================================================
+
+let onlineMode = false;
+
+function battleDoPlot(charIdx, value) {
+  if (onlineMode) OnlineApp.choosePlot(charIdx, value);
+  else            BattleApp.choosePlot(charIdx, value);
+}
+function battleDoAction(ninjutsuId) {
+  if (onlineMode) OnlineApp.chooseAction(ninjutsuId);
+  else            BattleApp.chooseAction(ninjutsuId);
+}
+function battleDoDmg(field) {
+  if (onlineMode) OnlineApp.resolveDamageChoice(field);
+  else            BattleApp.resolveDamageChoice(field);
+}
+function battleDoAdvance() {
+  if (onlineMode) OnlineApp.advanceRoundEnd();
+  else            BattleApp.advanceRoundEnd();
+}
+function battleDoBack() {
+  if (onlineMode) OnlineApp.backToHome();
+  else            BattleApp.backToHome();
+}
+
+// ===================================================================
+// ===== オンライン対戦 (Firebase) =====
+// ===================================================================
+
+const FIREBASE_CONFIG = {
+  apiKey:            'AIzaSyDibkhRxTFNy1KKEgM4ukMx4t4yKCoqAn4',
+  authDomain:        'sinosen.firebaseapp.com',
+  databaseURL:       'https://sinosen-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId:         'sinosen',
+  storageBucket:     'sinosen.firebasestorage.app',
+  messagingSenderId: '98010438944',
+  appId:             '1:98010438944:web:9e427f46e891deebd3cb45',
+};
+
+let _fbApp  = null;
+let _fbDb   = null;
+
+function getDb() {
+  if (!_fbDb) {
+    if (!firebase.apps.length) _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    else _fbApp = firebase.apps[0];
+    _fbDb = firebase.database();
+  }
+  return _fbDb;
+}
+
+// ===== 自分のID（セッション中固定） =====
+function getMyUid() {
+  let uid = sessionStorage.getItem('ninjaUid');
+  if (!uid) {
+    uid = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    sessionStorage.setItem('ninjaUid', uid);
+  }
+  return uid;
+}
+
+function genRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+// ===== オンライン状態 =====
+let myPlayerIdx  = null;  // 0 or 1
+let roomCode     = null;
+let roomRef      = null;
+let roomListener = null;
+
+const OnlineApp = {
+
+  showHome() {
+    showScreen('screen-online');
+  },
+
+  // ===== 部屋を作る =====
+  async createRoom() {
+    const chars = NinjaBattleCharacter.loadCharacters();
+    if (chars.length === 0) {
+      alert('キャラクターが1体もいません。先にキャラクター作成をしてください。');
+      return;
+    }
+    const db   = getDb();
+    myPlayerIdx = 0;
+    roomCode    = genRoomCode();
+    roomRef     = db.ref('rooms/' + roomCode);
+    onlineMode  = true;
+
+    await roomRef.set({
+      status: 'waiting',
+      createdAt: Date.now(),
+      plots: { 0: null, 1: null },
+      players: {
+        0: { uid: getMyUid(), charId: null, ready: false, charJson: null }
+      },
+      state: null,
+    });
+
+    showScreen('screen-online-room');
+    renderOnlineRoomLocal('waiting', null);
+    startRoomListener();
+  },
+
+  // ===== 部屋に入る =====
+  async joinRoom() {
+    const input = document.getElementById('room-code-input');
+    const code  = (input?.value || '').trim().toUpperCase();
+    if (code.length !== 4) { alert('4文字のコードを入力してください'); return; }
+
+    const db   = getDb();
+    const snap = await db.ref('rooms/' + code).once('value');
+    const room = snap.val();
+    if (!room)                      { alert('部屋が見つかりません'); return; }
+    if (room.status !== 'waiting')  { alert('この部屋には参加できません（満員か対戦中）'); return; }
+    if (room.players && room.players[1]) { alert('部屋が満員です'); return; }
+
+    myPlayerIdx = 1;
+    roomCode    = code;
+    roomRef     = db.ref('rooms/' + code);
+    onlineMode  = true;
+
+    await roomRef.child('players/1').set({ uid: getMyUid(), charId: null, ready: false, charJson: null });
+    await roomRef.child('status').set('selecting');
+
+    showScreen('screen-online-room');
+    startRoomListener();
+  },
+
+  // ===== キャラクター選択（オンライン待機室から） =====
+  selectChar(charId) {
+    if (!roomRef) return;
+    const chars = NinjaBattleCharacter.loadCharacters();
+    const char  = chars.find(c => c.id === charId);
+    if (!char) return;
+
+    roomRef.child('players/' + myPlayerIdx).update({
+      charId:   charId,
+      charJson: JSON.stringify(char),
+      ready:    true,
+    });
+  },
+
+  // ===== 戦闘操作（オンライン版）=====
+
+  choosePlot(charIdx, value) {
+    // 自分のプロットだけ選べる
+    if (charIdx !== myPlayerIdx) return;
+    if (!roomRef) return;
+    // Firebaseにプロット値を書く
+    roomRef.child('plots/' + myPlayerIdx).set(value);
+    // ローカル表示を即時更新（見やすくするため）
+    if (battleState) {
+      battleState = NinjaBattleBattle.cloneState(battleState);
+      battleState.chars[myPlayerIdx].plotValue = value;
+      renderBattle();
+    }
+  },
+
+  chooseAction(ninjutsuId) {
+    if (!roomRef || !battleState) return;
+    const actorIdx = NinjaBattleBattle.getCurrentActorIdx(battleState);
+    if (actorIdx !== myPlayerIdx) return;  // 自分のターンのみ
+    const newState = NinjaBattleBattle.chooseAction(battleState, ninjutsuId, MD.skills, MD.ninjutsu);
+    _pushState(newState);
+  },
+
+  resolveDamageChoice(field) {
+    if (!roomRef || !battleState) return;
+    const dc = battleState.pendingDamageChoice;
+    if (dc && dc.defIdx !== myPlayerIdx) return;  // 防御者のみ
+    const newState = NinjaBattleBattle.resolveDamageChoice(battleState, field);
+    _pushState(newState);
+  },
+
+  advanceRoundEnd() {
+    if (!roomRef || !battleState) return;
+    if (myPlayerIdx !== 0) return;  // ホストのみ進行（競合防止）
+    const newState = NinjaBattleBattle.advanceRoundEnd(battleState);
+    _pushState(newState);
+  },
+
+  backToHome() {
+    if (roomListener && roomRef) roomRef.off('value', roomListener);
+    roomListener = null;
+    roomRef      = null;
+    roomCode     = null;
+    myPlayerIdx  = null;
+    onlineMode   = false;
+    battleState  = null;
+    App.showHome();
+  },
+
+  leaveRoom() {
+    OnlineApp.backToHome();
+  },
+};
+
+// ===== Firebase への state 書き込み =====
+function _pushState(newState) {
+  battleState = newState;
+  roomRef.child('state').set(JSON.stringify(newState));
+}
+
+// ===== リスナー開始 =====
+function startRoomListener() {
+  if (roomListener && roomRef) roomRef.off('value', roomListener);
+  roomListener = function(snap) {
+    const room = snap.val();
+    if (!room) return;
+    onRoomUpdate(room);
+  };
+  roomRef.on('value', roomListener);
+}
+
+// ===== 部屋の更新を受け取る =====
+function onRoomUpdate(room) {
+  const status = room.status;
+
+  if (status === 'waiting' || status === 'selecting') {
+    renderOnlineRoomFromData(room);
+
+    // 両者 ready になったらホスト(player 0)が戦闘開始
+    if (myPlayerIdx === 0 && status === 'selecting') {
+      const p0 = room.players && room.players[0];
+      const p1 = room.players && room.players[1];
+      if (p0 && p1 && p0.ready && p1.ready && p0.charJson && p1.charJson) {
+        _startOnlineBattle(p0.charJson, p1.charJson);
+      }
+    }
+  }
+
+  if (status === 'battle' && room.state) {
+    const newState = JSON.parse(room.state);
+    battleState = newState;
+    showScreen('screen-battle');
+    renderBattle();
+
+    // プロット宣言: 両方書かれたらホストが state を更新
+    if (newState.phase === NinjaBattleBattle.PHASES.PLOT && myPlayerIdx === 0) {
+      _checkAndApplyPlots(room, newState);
+    }
+  }
+}
+
+// ===== ホストが両者のプロットを適用する =====
+function _checkAndApplyPlots(room, state) {
+  const p0 = room.plots && room.plots[0];
+  const p1 = room.plots && room.plots[1];
+  if (p0 == null || p1 == null) return;
+
+  let s = NinjaBattleBattle.cloneState(state);
+  s = NinjaBattleBattle.choosePlot(s, 0, p0);
+  s = NinjaBattleBattle.choosePlot(s, 1, p1);
+  // プロットをリセット
+  roomRef.update({ 'plots/0': null, 'plots/1': null });
+  _pushState(s);
+}
+
+// ===== ホストが戦闘を開始する =====
+async function _startOnlineBattle(charJson0, charJson1) {
+  const c0 = JSON.parse(charJson0);
+  const c1 = JSON.parse(charJson1);
+  const state = NinjaBattleBattle.initBattle([c0, c1], null, MD.skills, MD.ninjutsu);
+  await roomRef.update({ status: 'battle', state: JSON.stringify(state) });
+}
+
+// ===== 待機室の描画 =====
+
+function renderOnlineRoomLocal(status, room) {
+  renderOnlineRoomFromData(room || {
+    status,
+    players: { 0: { uid: getMyUid(), charId: null, ready: false } },
+  });
+}
+
+function renderOnlineRoomFromData(room) {
+  const el = document.getElementById('online-room-content');
+  if (!el) return;
+
+  const p0 = (room.players && room.players[0]) || null;
+  const p1 = (room.players && room.players[1]) || null;
+  const isHost = myPlayerIdx === 0;
+
+  // 部屋コード表示
+  let html = `
+    <div style="margin-bottom:20px">
+      <p style="font-size:0.85em;color:#888;margin-bottom:4px">部屋コード（相手に教えてください）</p>
+      <div style="font-size:2.4em;letter-spacing:0.3em;color:#e8c87a;font-weight:bold">${roomCode}</div>
+    </div>`;
+
+  // プレイヤー状態
+  html += `<div class="battle-layout" style="margin-bottom:16px">`;
+  html += _renderOnlinePlayer(0, p0, 'P1（ホスト）');
+  html += _renderOnlinePlayer(1, p1, 'P2（ゲスト）');
+  html += `</div>`;
+
+  // キャラ選択（自分のスロットがまだ選んでいない場合）
+  const myPlayer = myPlayerIdx === 0 ? p0 : p1;
+  if (!myPlayer || !myPlayer.ready) {
+    const chars = NinjaBattleCharacter.loadCharacters();
+    if (chars.length === 0) {
+      html += `<p style="color:#f88">キャラクターがいません。一度ホーム画面に戻り作成してください。</p>`;
+    } else {
+      html += `<h3>使用するキャラクターを選ぶ</h3>
+        <div class="setup-grid">
+          ${chars.map(c => `
+            <button class="setup-char-btn selected" onclick="OnlineApp.selectChar('${c.id}')">
+              <strong>${esc(c.name)}</strong><br>
+              <span style="font-size:0.8em;color:#aaa">${esc(c.factionName)}　HP${c.hpMax}</span>
+            </button>`).join('')}
+        </div>`;
+    }
+  } else if (!room.status || room.status === 'waiting') {
+    html += `<p style="color:#888">相手の接続を待っています…</p>`;
+  } else if (room.status === 'selecting') {
+    const bothReady = p0?.ready && p1?.ready;
+    if (bothReady && isHost) {
+      html += `<p style="color:#e8c87a">両者準備完了！戦闘を開始します…</p>`;
+    } else {
+      html += `<p style="color:#888">相手のキャラクター選択を待っています…</p>`;
+    }
+  }
+
+  el.innerHTML = html;
+}
+
+function _renderOnlinePlayer(idx, player, label) {
+  const isMe = idx === myPlayerIdx;
+  const border = isMe ? 'border-color:#8a6030' : '';
+  if (!player) {
+    return `<div class="char-panel" style="${border}">
+      <div class="cp-sub">${label}</div>
+      <div style="color:#555;margin-top:8px">接続待ち…</div>
+    </div>`;
+  }
+  const charInfo = player.ready && player.charJson
+    ? (() => { const c = JSON.parse(player.charJson); return `${esc(c.name)}（${esc(c.factionName)}）　HP${c.hpMax}`; })()
+    : '選択中…';
+  const readyBadge = player.ready
+    ? '<span style="color:#6c6;font-size:0.8em">✓ 準備完了</span>'
+    : '<span style="color:#888;font-size:0.8em">選択中…</span>';
+  return `<div class="char-panel" style="${border}">
+    <div class="cp-sub">${label}${isMe ? ' （あなた）' : ''}</div>
+    <div style="margin-top:6px">${charInfo}</div>
+    <div style="margin-top:6px">${readyBadge}</div>
+  </div>`;
+}
+
+// ===== オンライン時の「自分のターンか」チェック =====
+// renderPlotUI / renderActionUI 等で使う
+function _isMyTurn() {
+  if (!onlineMode || myPlayerIdx === null) return true;
+  if (!battleState) return false;
+  const ph = battleState.phase;
+  if (ph === NinjaBattleBattle.PHASES.PLOT) {
+    return battleState.chars[myPlayerIdx].plotValue === null;
+  }
+  if (ph === NinjaBattleBattle.PHASES.ACTION) {
+    return NinjaBattleBattle.getCurrentActorIdx(battleState) === myPlayerIdx;
+  }
+  if (ph === NinjaBattleBattle.PHASES.DAMAGE_CHOICE) {
+    return battleState.pendingDamageChoice?.defIdx === myPlayerIdx;
+  }
+  if (ph === NinjaBattleBattle.PHASES.ROUND_END) {
+    return myPlayerIdx === 0;
+  }
+  return false;
+}
+</script>
+</body>
+</html>

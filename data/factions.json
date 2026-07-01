@@ -1,0 +1,53 @@
+{
+  "_comment": "流派マスターデータ。favored_field=得意分野（その分野の特技を使う判定は目標値-1、代用判定では隣接移動コスト0）。nemesis=仇敵。設計書 2.1 参照。",
+  "factions": [
+    {
+      "id": "hasuba",
+      "name": "斜歯忍軍",
+      "reading": "はすばにんぐん",
+      "favored_field": "器術",
+      "favored_field_index": 0,
+      "nemesis": "鞍馬神流"
+    },
+    {
+      "id": "kurama",
+      "name": "鞍馬神流",
+      "reading": "くらましんりゅう",
+      "favored_field": "体術",
+      "favored_field_index": 1,
+      "nemesis": "隠忍の血統"
+    },
+    {
+      "id": "hagure",
+      "name": "ハグレモノ",
+      "reading": "はぐれもの",
+      "favored_field": "忍術",
+      "favored_field_index": 2,
+      "nemesis": "斜歯忍軍"
+    },
+    {
+      "id": "hirasaka",
+      "name": "比良坂機関",
+      "reading": "ひらさきかん",
+      "favored_field": "謀術",
+      "favored_field_index": 3,
+      "nemesis": "私立御斎学園"
+    },
+    {
+      "id": "otogi",
+      "name": "私立御斎学園",
+      "reading": "しりつおとぎがくえん",
+      "favored_field": "戦術",
+      "favored_field_index": 4,
+      "nemesis": "ハグレモノ"
+    },
+    {
+      "id": "oni",
+      "name": "隠忍の血統",
+      "reading": "おにのけっとう",
+      "favored_field": "妖術",
+      "favored_field_index": 5,
+      "nemesis": "比良坂機関"
+    }
+  ]
+}
