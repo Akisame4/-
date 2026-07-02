@@ -1109,22 +1109,20 @@ function battleDoAction(ninjutsuId) {
     return;
   }
 
-  // 先に新ステートを計算してからアニメーション → 表示
   const newState = NinjaBattleBattle.chooseAction(battleState, ninjutsuId, MD.skills, MD.ninjutsu);
   const events   = newState.lastDiceEvents || [];
 
-  function applyState() {
-    if (onlineMode) {
-      battleState = newState;
-      if (roomRef) roomRef.child('state').set(JSON.stringify(newState));
-    } else {
-      battleState = newState;
-      renderBattle();
-    }
+  if (onlineMode) {
+    // オンライン: 先に push → 相手と同時にアニメ開始 → 結果描画
+    battleState = newState;
+    if (roomRef) roomRef.child('state').set(JSON.stringify(newState));
+    if (events.length === 0) { renderBattle(); return; }
+    showDiceAnimation(events, () => renderBattle());
+  } else {
+    // ローカル: アニメ後に描画
+    if (events.length === 0) { battleState = newState; renderBattle(); return; }
+    showDiceAnimation(events, () => { battleState = newState; renderBattle(); });
   }
-
-  if (events.length === 0) { applyState(); return; }
-  showDiceAnimation(events, applyState);
 }
 
 // ===== ダイスアニメーション =====
