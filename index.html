@@ -1456,6 +1456,11 @@ function onRoomUpdate(room) {
 
   if (status === 'battle' && room.state) {
     const newState = JSON.parse(room.state);
+    const prevLogLen = battleState ? battleState.log.length : -1;
+    const diceEvents = newState.lastDiceEvents || [];
+    // ログが増えていて、かつ自分がまだ処理していないアクション → アニメを流す
+    const shouldAnimate = diceEvents.length > 0 && newState.log.length > prevLogLen;
+
     battleState = newState;
     if (room.players) {
       const av = i => {
@@ -1465,7 +1470,12 @@ function onRoomUpdate(room) {
       battleAvatars = [av(0), av(1)];
     }
     showScreen('battle');
-    renderBattle();
+
+    if (shouldAnimate) {
+      showDiceAnimation(diceEvents, () => renderBattle());
+    } else {
+      renderBattle();
+    }
 
     // プロット宣言: 両方書かれたらホストが state を更新
     if (newState.phase === NinjaBattleBattle.PHASES.PLOT && myPlayerIdx === 0) {
