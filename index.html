@@ -27,10 +27,20 @@ input[type=text]:focus { outline: none; border-color: #8a6030; }
 
 /* ホーム画面 */
 #char-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-.char-card { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+.char-card { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .char-card .info .cname { font-weight: bold; font-size: 1.05em; color: #eee; }
 .char-card .info .csub { font-size: 0.82em; color: #888; margin-top: 3px; }
-.char-card .acts { display: flex; gap: 8px; }
+.char-card .acts { display: flex; gap: 8px; flex-shrink: 0; }
+.char-card .info { flex: 1; min-width: 0; }
+.char-avatar { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.char-avatar-none { width: 52px; height: 52px; border-radius: 8px; background: #2a2a2a; border: 1px solid #333; flex-shrink: 0; }
+/* アバターアップロード */
+.avatar-upload-row { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.avatar-upload-box { width: 90px; height: 90px; border-radius: 12px; border: 2px dashed #555; cursor: pointer; background: #111; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; transition: border-color .15s; }
+.avatar-upload-box:hover { border-color: #c8a060; }
+.avatar-upload-box img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-ph { color: #555; font-size: 0.78em; text-align: center; pointer-events: none; line-height: 1.4; }
+.avatar-hint { font-size: 0.8em; color: #666; }
 .empty-msg { color: #555; margin-top: 24px; text-align: center; padding: 32px; border: 1px dashed #333; border-radius: 8px; }
 
 /* 流派ボタン */
@@ -207,6 +217,19 @@ table.skill-tbl input[type=checkbox] { accent-color: #8a6030; width: 13px; heigh
   <div id="screen-create" class="screen">
     <h2 id="create-title">キャラクター作成</h2>
 
+    <!-- アバター画像 -->
+    <div class="avatar-upload-row">
+      <div class="avatar-upload-box" id="avatar-preview" onclick="document.getElementById('avatar-input').click()">
+        <span class="avatar-ph">＋<br>画像を追加</span>
+      </div>
+      <input type="file" id="avatar-input" accept="image/*" style="display:none" onchange="App.handleAvatarUpload(this)">
+      <div>
+        <div class="avatar-hint">クリックして画像を選択</div>
+        <div class="avatar-hint" style="margin-top:4px">正方形に自動トリミングされます</div>
+        <button id="avatar-clear-btn" style="display:none;margin-top:8px" onclick="App.clearAvatar()">画像を削除</button>
+      </div>
+    </div>
+
     <!-- 流派 -->
     <h3>流派</h3>
     <div id="faction-area" class="faction-grid"></div>
@@ -328,6 +351,39 @@ let editingId  = null;
 let selFaction = null;
 let selSkills  = new Set(); // skill name
 let selNin     = new Set(); // ninjutsu id
+let charAvatar = null;      // base64 or null
+
+function resizeImageToBase64(file, size, quality, cb) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width - min) / 2;
+      const sy = (img.height - min) / 2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      cb(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateAvatarPreview() {
+  const box = document.getElementById('avatar-preview');
+  const btn = document.getElementById('avatar-clear-btn');
+  if (!box) return;
+  if (charAvatar) {
+    box.innerHTML = `<img src="${charAvatar}" alt="avatar">`;
+    btn.style.display = '';
+  } else {
+    box.innerHTML = '<span class="avatar-ph">＋<br>画像を追加</span>';
+    btn.style.display = 'none';
+  }
+}
 
 // ===== 画面切り替え =====
 
@@ -348,22 +404,39 @@ const App = {
     editingId = charId || null;
     if (charId) {
       const c = NinjaBattleCharacter.getCharacterById(charId);
-      selFaction = c.factionId;
-      selSkills  = new Set(c.skillNames);
-      selNin     = new Set(c.ninjutsuIds);
+      selFaction  = c.factionId;
+      selSkills   = new Set(c.skillNames);
+      selNin      = new Set(c.ninjutsuIds);
+      charAvatar  = c.avatar || null;
       document.getElementById('char-name').value = c.name;
       document.getElementById('kasumi-select').value = (c.immuneConditions || [])[0] || '';
       document.getElementById('create-title').textContent = 'キャラクター編集';
     } else {
-      selFaction = null;
-      selSkills  = new Set();
-      selNin     = new Set();
+      selFaction  = null;
+      selSkills   = new Set();
+      selNin      = new Set();
+      charAvatar  = null;
       document.getElementById('char-name').value = '';
       document.getElementById('kasumi-select').value = '';
       document.getElementById('create-title').textContent = 'キャラクター作成';
     }
     showScreen('create');
     renderCreate();
+    updateAvatarPreview();
+  },
+
+  handleAvatarUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    resizeImageToBase64(input.files[0], 150, 0.75, base64 => {
+      charAvatar = base64;
+      updateAvatarPreview();
+    });
+  },
+
+  clearAvatar() {
+    charAvatar = null;
+    document.getElementById('avatar-input').value = '';
+    updateAvatarPreview();
   },
 
   selectFaction(id) {
@@ -422,6 +495,9 @@ const App = {
       result.character.immuneConditions = [kasumiVal];
     }
 
+    // アバター画像
+    if (charAvatar) result.character.avatar = charAvatar;
+
     NinjaBattleCharacter.saveCharacter(result.character);
     App.showHome();
   },
@@ -450,8 +526,12 @@ function renderHome() {
       return n ? n.name : id;
     }).join('、');
     const skills = (c.skillNames || []).join('・');
+    const avatarHtml = c.avatar
+      ? `<img class="char-avatar" src="${c.avatar}" alt="">`
+      : `<div class="char-avatar-none"></div>`;
     return `
       <div class="char-card">
+        ${avatarHtml}
         <div class="info">
           <div class="cname">${esc(c.name)}</div>
           <div class="csub">${esc(c.factionName || '')}　HP: ${c.hpMax}　特技: ${esc(skills)}</div>
@@ -1264,9 +1344,11 @@ const OnlineApp = {
     const char  = chars.find(c => c.id === charId);
     if (!char) return;
 
+    const charForSync = Object.assign({}, char);
+    delete charForSync.avatar;
     roomRef.child('players/' + myPlayerIdx).update({
       charId:   charId,
-      charJson: JSON.stringify(char),
+      charJson: JSON.stringify(charForSync),
       ready:    true,
     });
   },
