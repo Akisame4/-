@@ -143,6 +143,9 @@ table.skill-tbl input[type=checkbox] { accent-color: #8a6030; width: 13px; heigh
 /* ===== 戦闘画面 ===== */
 .battle-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .char-panel { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
+.cp-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.cp-avatar { width: 54px; height: 54px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid #444; }
+.cp-avatar-none { width: 54px; height: 54px; border-radius: 8px; background: #222; border: 1px solid #333; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #444; font-size: 1.4em; }
 .char-panel .cp-name { font-weight: bold; font-size: 1.05em; color: #eee; }
 .char-panel .cp-sub { font-size: 0.8em; color: #888; }
 .char-panel .cp-plot { display: inline-block; background: #2a2200; border: 1px solid #5a4a10; color: #e8c87a; padding: 1px 8px; border-radius: 3px; font-size: 0.85em; margin-top: 4px; }
@@ -775,7 +778,8 @@ init();
 // ===== 戦闘システム =====
 // ===================================================================
 
-let battleState = null;
+let battleState   = null;
+let battleAvatars = [null, null]; // [player0Avatar, player1Avatar]
 let battleChar1Id = null;
 
 const BattleApp = {
@@ -834,6 +838,7 @@ const BattleApp = {
     const c2 = chars.find(c => c.id === char2Id);
     if (!c1 || !c2) return;
 
+    battleAvatars = [c1.avatar || null, c2.avatar || null];
     battleState = NinjaBattleBattle.initBattle(
       [c1, c2], BattleApp._selectedBf || null, MD.skills, MD.ninjutsu
     );
@@ -911,10 +916,19 @@ function renderCharPanels() {
     panel.className = 'char-panel' + (c.sakanagi ? ' is-sakanagi' : '') + (isActive ? '' : '');
     panel.style.borderColor = isActive ? '#8a6030' : '';
 
+    const av = battleAvatars[i];
+    const avatarEl = av
+      ? `<img class="cp-avatar" src="${av}" alt="">`
+      : `<div class="cp-avatar-none">忍</div>`;
     panel.innerHTML = `
-      <div class="cp-name">${esc(c.name)}</div>
-      <div class="cp-sub">${esc(c.factionName || '')}　HP: ${hp}/${hpMax}</div>
-      ${plotLabel}
+      <div class="cp-header">
+        ${avatarEl}
+        <div>
+          <div class="cp-name">${esc(c.name)}</div>
+          <div class="cp-sub">${esc(c.factionName || '')}　HP: ${hp}/${hpMax}</div>
+          ${plotLabel}
+        </div>
+      </div>
       <div class="hp-grid">${slots}</div>
       <div class="conditions-row">${conds}</div>`;
   });
@@ -1344,11 +1358,9 @@ const OnlineApp = {
     const char  = chars.find(c => c.id === charId);
     if (!char) return;
 
-    const charForSync = Object.assign({}, char);
-    delete charForSync.avatar;
     roomRef.child('players/' + myPlayerIdx).update({
       charId:   charId,
-      charJson: JSON.stringify(charForSync),
+      charJson: JSON.stringify(char),
       ready:    true,
     });
   },
@@ -1445,6 +1457,13 @@ function onRoomUpdate(room) {
   if (status === 'battle' && room.state) {
     const newState = JSON.parse(room.state);
     battleState = newState;
+    if (room.players) {
+      const av = i => {
+        try { const p = room.players[i]; return p && p.charJson ? (JSON.parse(p.charJson).avatar || null) : null; }
+        catch { return null; }
+      };
+      battleAvatars = [av(0), av(1)];
+    }
     showScreen('battle');
     renderBattle();
 
