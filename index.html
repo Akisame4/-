@@ -72,6 +72,8 @@ table.skill-tbl td.favored { border-left: 3px solid #000; border-right: 3px soli
 /* 空マス列 */
 table.skill-tbl th.gap { background: #fff; border: 1px solid #ccc; min-width: 18px; width: 18px; padding: 0; }
 table.skill-tbl td.gap { background: #fff; border: 1px solid #ccc; padding: 0; }
+table.skill-tbl th.gap.favored-gap { background: #000; border-color: #000; }
+table.skill-tbl td.gap.favored-gap { background: #000; border-color: #000; }
 
 /* 忍法カード */
 .nin-section { margin-bottom: 16px; }
@@ -577,23 +579,26 @@ function renderSkillTable() {
   const tbl = document.getElementById('skill-tbl');
   const faction = selFaction ? MD.factions.find(f => f.id === selFaction) : null;
   const favoredField = faction ? faction.favored_field : null;
+  const favoredFI    = faction ? faction.favored_field_index : -1;
 
   // ヘッダー: [空マス][器術][空マス][体術]...[空マス][妖術]（末尾に空マスなし）
   let html = '<thead><tr>';
-  MD.fields.forEach(f => {
-    const fav = f.name === favoredField ? 'favored' : '';
-    html += `<th class="gap"></th><th class="${fav}">${esc(f.name)}</th>`;
+  MD.fields.forEach((f, i) => {
+    const fav     = f.name === favoredField ? 'favored' : '';
+    const gapFav  = (i === favoredFI || i === favoredFI + 1) ? 'favored-gap' : '';
+    html += `<th class="gap ${gapFav}"></th><th class="${fav}">${esc(f.name)}</th>`;
   });
   html += '</tr></thead><tbody>';
 
   // 11行
   for (let row = 1; row <= 11; row++) {
     html += '<tr>';
-    MD.fields.forEach(f => {
-      const skill = MD.skillsByField[f.name][row - 1];
-      const fav   = f.name === favoredField ? 'favored' : '';
-      const chk   = selSkills.has(skill.name) ? 'checked' : '';
-      html += `<td class="gap"></td><td class="${fav}">
+    MD.fields.forEach((f, i) => {
+      const skill   = MD.skillsByField[f.name][row - 1];
+      const fav     = f.name === favoredField ? 'favored' : '';
+      const gapFav  = (i === favoredFI || i === favoredFI + 1) ? 'favored-gap' : '';
+      const chk     = selSkills.has(skill.name) ? 'checked' : '';
+      html += `<td class="gap ${gapFav}"></td><td class="${fav}">
         <label class="${chk}">
           <input type="checkbox" ${chk ? 'checked' : ''}
             onchange="App.toggleSkill('${esc(skill.name)}')">
