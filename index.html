@@ -175,6 +175,14 @@ table.skill-tbl td.gap.favored-gap { background: #000; border-color: #000; }
 .plot-btn.chosen { background: #4a2800; border-color: #7a5010; color: #e8c87a; }
 .plot-chosen-label { color: #e8c87a; font-size: 0.9em; }
 
+/* ベロシティトラッカー */
+.velocity-tracker { margin-top: 14px; }
+.vt-avatar-row { display: grid; grid-template-columns: repeat(8, 1fr); margin-bottom: 3px; }
+.vt-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 52px; gap: 2px; }
+.vt-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #e8c87a; }
+.vt-avatar-none { width: 42px; height: 42px; border-radius: 50%; background: #2a2a2a; border: 2px solid #e8c87a; display: flex; align-items: center; justify-content: center; font-size: 0.75em; color: #e8c87a; font-weight: bold; }
+.vt-img { width: 100%; display: block; border-radius: 4px; }
+
 /* 行動選択 */
 .action-header { color: #e8c87a; font-size: 0.95em; margin-bottom: 10px; }
 .action-ninjutsu { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -960,6 +968,35 @@ function renderPhaseUI() {
   }
 }
 
+function renderVelocityTracker(s) {
+  // 各プロット値(0〜7)にいるプレイヤーをまとめる
+  // オンラインモードでは相手のplotValueは両者宣言後まで非公開
+  const avatarsByPlot = {};
+  s.chars.forEach((c, i) => {
+    const pv = c.plotValue;
+    if (pv === null) return;
+    // オンラインモード: 相手の宣言位置は自分も宣言済みのときだけ表示
+    if (onlineMode && i !== myPlayerIdx && s.chars[myPlayerIdx].plotValue === null) return;
+    if (!avatarsByPlot[pv]) avatarsByPlot[pv] = [];
+    avatarsByPlot[pv].push({ av: battleAvatars[i], name: c.name });
+  });
+
+  const cols = Array.from({ length: 8 }, (_, v) => {
+    const players = avatarsByPlot[v] || [];
+    const inner = players.map(p =>
+      p.av
+        ? `<img class="vt-avatar" src="${p.av}" alt="${esc(p.name)}" title="${esc(p.name)}">`
+        : `<div class="vt-avatar-none" title="${esc(p.name)}">${esc(p.name[0] || '忍')}</div>`
+    ).join('');
+    return `<div class="vt-col">${inner}</div>`;
+  }).join('');
+
+  return `<div class="velocity-tracker">
+    <div class="vt-avatar-row">${cols}</div>
+    <img class="vt-img" src="00sozai/velocity_system.png" alt="VELOCITY SYSTEM">
+  </div>`;
+}
+
 function renderPlotUI(s) {
   const rows = s.chars.map((c, i) => {
     const isMyRow = !onlineMode || i === myPlayerIdx;
@@ -991,6 +1028,7 @@ function renderPlotUI(s) {
     <div class="phase-label">プロット宣言フェーズ</div>
     <p style="font-size:0.85em;color:#888;margin-bottom:10px">1〜6 を秘密裏に選択。高い方が先行。</p>
     <div class="plot-section">${rows}</div>
+    ${renderVelocityTracker(s)}
   </div>`;
 }
 
