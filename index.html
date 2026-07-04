@@ -58,18 +58,17 @@ input[type=text]:focus { outline: none; border-color: #8a6030; }
 
 /* 特技テーブル */
 .skill-table-wrap { overflow-x: auto; }
-table.skill-tbl { border-collapse: separate; border-spacing: 0; font-size: 0.82em; white-space: nowrap; }
-table.skill-tbl th { background: #222; padding: 6px 14px; border-top: 1px solid #333; border-bottom: 2px solid #444; color: #aaa; font-weight: bold; min-width: 96px; text-align: center; }
-table.skill-tbl th.favored { background: #2a1e00; color: #e8c87a; }
-/* 列間のセパレーター: 各列の左に太めの境界 */
-table.skill-tbl th:not(:first-child),
-table.skill-tbl td:not(:first-child) { border-left: 8px solid #0d0d0d; }
-table.skill-tbl td { border-bottom: 1px solid #1e1e1e; padding: 0; }
-table.skill-tbl td label { display: flex; align-items: center; gap: 6px; padding: 5px 14px; cursor: pointer; }
-table.skill-tbl td label:hover { background: #222; }
+table.skill-tbl { border-collapse: collapse; font-size: 0.82em; white-space: nowrap; }
+table.skill-tbl th { background: #2a2a2a; padding: 6px 12px; border: 1px solid #555; color: #ccc; font-weight: bold; min-width: 96px; text-align: center; }
+table.skill-tbl td { border: 1px solid #333; padding: 0; }
+table.skill-tbl td label { display: flex; align-items: center; gap: 5px; padding: 4px 10px; cursor: pointer; }
+table.skill-tbl td label:hover { background: #2a2a2a; }
 table.skill-tbl td label.checked { background: #1a2a1a; color: #8c8; }
 table.skill-tbl td.favored label.checked { background: #2a1e00; color: #e8c87a; }
 table.skill-tbl input[type=checkbox] { accent-color: #8a6030; width: 13px; height: 13px; }
+/* 得意分野列: 両サイドに黒の太線 */
+table.skill-tbl th.favored { background: #2a1e00; color: #e8c87a; border-left: 3px solid #000; border-right: 3px solid #000; }
+table.skill-tbl td.favored { border-left: 3px solid #000; border-right: 3px solid #000; }
 
 /* 忍法カード */
 .nin-section { margin-bottom: 16px; }
