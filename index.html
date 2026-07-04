@@ -345,6 +345,9 @@ table.skill-tbl td.gap.favored-gap { background: #000; border-color: #000; }
     <!-- フェーズUI -->
     <div id="battle-phase-ui"></div>
 
+    <!-- VELOCITYトラッカー（常時表示） -->
+    <div id="battle-velocity-ui"></div>
+
     <!-- バトルログ -->
     <div style="font-size:0.78em;color:#666;margin-top:12px;margin-bottom:4px">戦闘ログ</div>
     <div id="battle-log" class="battle-log-area"></div>
@@ -902,7 +905,19 @@ function renderBattle() {
 
   renderCharPanels();
   renderPhaseUI();
+  renderVelocityUI();
   renderBattleLog();
+}
+
+function renderVelocityUI() {
+  const el = document.getElementById('battle-velocity-ui');
+  if (!el) return;
+  const s = battleState;
+  if (!s || s.phase === NinjaBattleBattle.PHASES.ENDED) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = renderVelocityTracker(s);
 }
 
 function renderCharPanels() {
@@ -1028,7 +1043,6 @@ function renderPlotUI(s) {
     <div class="phase-label">プロット宣言フェーズ</div>
     <p style="font-size:0.85em;color:#888;margin-bottom:10px">1〜6 を秘密裏に選択。高い方が先行。</p>
     <div class="plot-section">${rows}</div>
-    ${renderVelocityTracker(s)}
   </div>`;
 }
 
