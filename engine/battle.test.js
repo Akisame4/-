@@ -222,7 +222,7 @@ describe('chooseAction - パス', () => {
     s = Battle.choosePlot(s, 1, 3);
     // char[0] が先攻
     assert.strictEqual(s.actionOrder[0], 0);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     assert.strictEqual(s.actionOrder[s.currentActionIdx], 1);  // char[1] の番
     assert.ok(s.log.some(l => l.includes('パス')));
   });
@@ -231,8 +231,8 @@ describe('chooseAction - パス', () => {
     let s = Battle.initBattle([char1, char2], null, skillsData, ninjutsuData);
     s = Battle.choosePlot(s, 0, 3);
     s = Battle.choosePlot(s, 1, 3);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);  // char[0] パス
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);  // char[1] パス
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);  // char[0] パス
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);  // char[1] パス
     assert.strictEqual(s.phase, Battle.PHASES.ROUND_END);
   });
 });
@@ -259,7 +259,7 @@ describe('chooseAction - 接近戦攻撃', () => {
       console.log('    （スキップ: meleeNin.range < 2）');
       return;
     }
-    s = Battle.chooseAction(s, meleeNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, meleeNin.id, 1, skillsData, ninjutsuData, rng);
     // HP が1つ減っているはず（スペシャルで回復可能性あり）
     const hpAfter = Core.getHpCurrent(s.chars[1].hpSlots);
     // スペシャルで1回復するので max-1+1=max か max-1 のどちらか
@@ -275,7 +275,7 @@ describe('chooseAction - 接近戦攻撃', () => {
                         3, 4); // 使われないが念のため
     let s = attackSetup(1, 1);  // char[0]先攻
     const hpBefore = Core.getHpCurrent(s.chars[1].hpSlots);
-    s = Battle.chooseAction(s, meleeNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, meleeNin.id, 1, skillsData, ninjutsuData, rng);
     const hpAfter = Core.getHpCurrent(s.chars[1].hpSlots);
     assert.strictEqual(hpBefore, hpAfter, '命中失敗ならHP変化なし');
   });
@@ -287,7 +287,7 @@ describe('chooseAction - 接近戦攻撃', () => {
                         1);
     let s = attackSetup(3, 3);
     const hpBefore = Core.getHpCurrent(s.chars[1].hpSlots);
-    s = Battle.chooseAction(s, meleeNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, meleeNin.id, 1, skillsData, ninjutsuData, rng);
     const hpAfter = Core.getHpCurrent(s.chars[1].hpSlots);
     assert.ok(hpAfter >= hpBefore, '回避成功なら HP 減少なし（スペシャル回復あり）');
   });
@@ -296,7 +296,7 @@ describe('chooseAction - 接近戦攻撃', () => {
     // プロット=6、roll=6(6≤6 → ファンブル)
     const rng = makeRng(3, 3);  // 2D6=6、プロット=6 → ファンブル
     let s = attackSetup(6, 1);
-    s = Battle.chooseAction(s, meleeNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, meleeNin.id, 1, skillsData, ninjutsuData, rng);
     assert.strictEqual(s.chars[0].sakanagi, true, '攻撃者が逆凪');
     assert.ok(s.log.some(l => l.includes('逆凪')));
   });
@@ -312,7 +312,7 @@ describe('chooseAction - 射撃戦', () => {
     let s = Battle.initBattle([char1, char2], null, skillsData, ninjutsuData);
     s = Battle.choosePlot(s, 0, 3);
     s = Battle.choosePlot(s, 1, 3);
-    s = Battle.chooseAction(s, rangedNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, rangedNin.id, 1, skillsData, ninjutsuData, rng);
     assert.strictEqual(s.phase, Battle.PHASES.DAMAGE_CHOICE);
     assert.ok(s.pendingDamageChoice);
     assert.strictEqual(s.pendingDamageChoice.damageType, 'ranged');
@@ -329,7 +329,7 @@ describe('resolveDamageChoice', () => {
     let s = Battle.initBattle([char1, char2], null, skillsData, ninjutsuData);
     s = Battle.choosePlot(s, 0, 3);
     s = Battle.choosePlot(s, 1, 3);
-    s = Battle.chooseAction(s, rangedNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, rangedNin.id, 1, skillsData, ninjutsuData, rng);
     assert.strictEqual(s.phase, Battle.PHASES.DAMAGE_CHOICE);
 
     const hpBefore = Core.getHpCurrent(s.chars[1].hpSlots);
@@ -354,7 +354,7 @@ describe('逆凪', () => {
     const hpBefore = Core.getHpCurrent(s.chars[1].hpSlots);
     // 逆凪中はロールに関係なく失敗
     const rng = makeRng(6, 6, 6, 6);  // 出目がよくても
-    s = Battle.chooseAction(s, meleeNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, meleeNin.id, 1, skillsData, ninjutsuData, rng);
     const hpAfter = Core.getHpCurrent(s.chars[1].hpSlots);
     // 逆凪なら攻撃失敗→HPは変わらない（スペシャルによる回復はない）
     assert.strictEqual(hpBefore, hpAfter, '逆凪で攻撃失敗');
@@ -365,8 +365,8 @@ describe('逆凪', () => {
     s = Battle.choosePlot(s, 0, 3);
     s = Battle.choosePlot(s, 1, 3);
     s.chars[0].sakanagi = true;
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     assert.strictEqual(s.phase, Battle.PHASES.ROUND_END);
     s = Battle.advanceRoundEnd(s);
     // maxRounds=2 なので advanceRoundEnd が endByTimeLimit を呼ぶ可能性あり
@@ -388,7 +388,7 @@ describe('集団戦ダメージ', () => {
     s = Battle.choosePlot(s, 0, 3);
     s = Battle.choosePlot(s, 1, 3);
     const condBefore = s.chars[1].conditions.length;
-    s = Battle.chooseAction(s, groupNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, groupNin.id, 1, skillsData, ninjutsuData, rng);
     // 変調が付いているはず（または免疫で無効化）
     assert.ok(s.chars[1].conditions.length >= condBefore, '変調が付くかそのまま');
   });
@@ -402,8 +402,8 @@ describe('advanceRoundEnd', () => {
     s.maxRounds = 3;  // 遷移を確認するため余裕を持たせる
     s = Battle.choosePlot(s, 0, 2);
     s = Battle.choosePlot(s, 1, 2);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     assert.strictEqual(s.phase, Battle.PHASES.ROUND_END);
     s = Battle.advanceRoundEnd(s);
     assert.strictEqual(s.phase, Battle.PHASES.PLOT);  // round2 へ進む
@@ -418,26 +418,26 @@ describe('advanceRoundEnd', () => {
     s.maxRounds = 3;
     // Round 1: 全員パス
     s = Battle.choosePlot(s, 0, 3); s = Battle.choosePlot(s, 1, 3);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     s = Battle.advanceRoundEnd(s);
     assert.strictEqual(s.phase, Battle.PHASES.PLOT);
     assert.strictEqual(s.round, 2);
     // Round 2: 全員パス
     s = Battle.choosePlot(s, 0, 4); s = Battle.choosePlot(s, 1, 2);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     s = Battle.advanceRoundEnd(s);
     assert.strictEqual(s.phase, Battle.PHASES.PLOT);
     assert.strictEqual(s.round, 3);
     // Round 3: 全員パス → round_end → exceeded maxRounds → ended
     s = Battle.choosePlot(s, 0, 2); s = Battle.choosePlot(s, 1, 2);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     s = Battle.advanceRoundEnd(s);
     assert.strictEqual(s.phase, Battle.PHASES.ENDED);
-    // HP 同じなので引き分け（winner=null）
-    assert.strictEqual(s.winner, null);
+    // HP 同じなので引き分け（winnerTeamIdx=null）
+    assert.strictEqual(s.winnerTeamIdx, null);
   });
 });
 
@@ -450,7 +450,7 @@ describe('戦場効果', () => {
     s = Battle.choosePlot(s, 1, 3);
     // 回避判定のログに修正が記録されているか確認
     const rng = makeRng(4, 3, 3, 3);  // 攻撃7成功、回避6だが-2で4→成功(TV5-2=3以上?)
-    s = Battle.chooseAction(s, meleeNin.id, skillsData, ninjutsuData, rng);
+    s = Battle.chooseAction(s, meleeNin.id, 1, skillsData, ninjutsuData, rng);
     assert.ok(s.log.some(l => l.includes('修正')), '回避判定に修正が記録される');
   });
 
@@ -479,9 +479,9 @@ describe('脱落', () => {
     s = Battle.choosePlot(s, 0, 3);
     s = Battle.choosePlot(s, 1, 3);
     // char[0] の行動時に脱落チェックがかかる（既に defeated）
-    s = Battle.chooseAction(s, null, skillsData, ninjutsuData);
+    s = Battle.chooseAction(s, null, null, skillsData, ninjutsuData);
     assert.strictEqual(s.phase, Battle.PHASES.ENDED);
-    assert.strictEqual(s.winner, 0);
+    assert.strictEqual(s.winnerTeamIdx, 0);  // char[0]のteamIdx=0
   });
 });
 

@@ -37,6 +37,7 @@
         ninjutsuIds:[...c.ninjutsuIds],
         immuneConditions: [...(c.immuneConditions || [])],
       })),
+      teams: s.teams ? s.teams.map(t => ({ ...t })) : [],
       actionOrder: [...s.actionOrder],
       log:         [...s.log],
       pendingDamageChoice: s.pendingDamageChoice
@@ -53,21 +54,54 @@
     return false;
   }
 
-  function endBattle(s, winnerIdx) {
-    const name = winnerIdx !== null ? s.chars[winnerIdx].name : '引き分け';
-    s.phase  = PHASES.ENDED;
-    s.winner = winnerIdx;
-    s.log.push(`=== 戦闘終了 === 勝者: ${name}`);
+  function endBattle(s, winnerTeamIdx) {
+    s.phase = PHASES.ENDED;
+    s.winnerTeamIdx = winnerTeamIdx;
+    let winnerName = '引き分け';
+    if (winnerTeamIdx !== null && winnerTeamIdx !== undefined) {
+      const team = s.teams && s.teams.find(t => t.idx === winnerTeamIdx);
+      if (team) {
+        winnerName = team.name;
+      } else {
+        const wchar = s.chars.find(c => c.teamIdx === winnerTeamIdx);
+        winnerName = wchar ? wchar.name : `チーム${winnerTeamIdx}`;
+      }
+    }
+    s.log.push(`=== 戦闘終了 === 勝者: ${winnerName}`);
     return s;
   }
 
+  function getLivingTeams(chars) {
+    const seen = new Set();
+    const living = [];
+    for (const c of chars) {
+      if (!isCharDefeated(c) && !seen.has(c.teamIdx)) {
+        seen.add(c.teamIdx);
+        living.push(c.teamIdx);
+      }
+    }
+    return living;
+  }
+
+  function checkVictory(s) {
+    const living = getLivingTeams(s.chars);
+    if (living.length <= 1) return endBattle(s, living.length === 1 ? living[0] : null);
+    return null;
+  }
+
   function endByTimeLimit(s) {
-    const hps = s.chars.map(c => Core.getHpCurrent(c.hpSlots));
-    s.log.push(`規定ラウンド終了。残生命力: ${s.chars.map((c, i) => c.name + ' ' + hps[i]).join(' / ')}`);
-    let wi = null;
-    if (hps[0] > hps[1]) wi = 0;
-    else if (hps[1] > hps[0]) wi = 1;
-    return endBattle(s, wi);
+    const teamHp = {};
+    s.chars.forEach(c => {
+      teamHp[c.teamIdx] = (teamHp[c.teamIdx] || 0) + Core.getHpCurrent(c.hpSlots);
+    });
+    s.log.push(`規定ラウンド終了。残生命力: ${s.chars.map(c => c.name + ' ' + Core.getHpCurrent(c.hpSlots)).join(' / ')}`);
+    let maxHp = -1, winnerTeamIdx = null, tie = false;
+    for (const [ti, hp] of Object.entries(teamHp)) {
+      const t = Number(ti);
+      if (hp > maxHp) { maxHp = hp; winnerTeamIdx = t; tie = false; }
+      else if (hp === maxHp) { tie = true; }
+    }
+    return endBattle(s, tie ? null : winnerTeamIdx);
   }
 
   function resultLabel(r) {
@@ -133,7 +167,6 @@
 
     switch (condition) {
       case 'マヒ':
-        // スタックごとに1分野をブロック。ここでは最初の1つのみ選択。
         if (!c.mahiBlockedField) {
           const fi = (Core.roll1d6(rng) - 1);  // 0-5
           c.mahiBlockedField = Core.FIELDS[fi];
@@ -180,19 +213,20 @@
 
   /**
    * 戦闘を初期化して初期ステートを返す。
-   * @param {Object[]} charSheets  - LoadCharacters() で得たキャラクターデータ（2体）
+   * @param {Object[]} charSheets  - LoadCharacters() で得たキャラクターデータ（各自 teamIdx を持つこと）
    * @param {string|null} battlefieldId  - null = 平地
    * @param {Object[]} skillsData
    * @param {Object[]} ninjutsuData
    * @param {Function|null} rng
+   * @param {Object[]|null} teams  - [{ idx, name }, ...] 省略時はcharSheetsから自動生成
    * @returns {Object} battle state
    */
-  function initBattle(charSheets, battlefieldId, skillsData, ninjutsuData, rng) {
+  function initBattle(charSheets, battlefieldId, skillsData, ninjutsuData, rng, teams) {
     const battlefield = battlefieldId
       ? Core.getBattlefieldById(battlefieldId)
       : Core.BATTLEFIELDS[0];
 
-    const chars = charSheets.map(c => {
+    const chars = charSheets.map((c, i) => {
       const ninNames = (c.ninjutsuIds || [])
         .map(id => ninjutsuData.find(n => n.id === id)?.name)
         .filter(Boolean);
@@ -212,8 +246,18 @@
         sakanagi:  false,
         plotValue: null,
         acted:     false,
+        teamIdx:   c.teamIdx ?? i,
       };
     });
+
+    // teamsが指定されていない場合はcharから自動生成
+    if (!teams) {
+      const teamMap = {};
+      chars.forEach(c => {
+        if (!teamMap[c.teamIdx]) teamMap[c.teamIdx] = { idx: c.teamIdx, name: `チーム${c.teamIdx}` };
+      });
+      teams = Object.values(teamMap);
+    }
 
     const maxRounds = 10;
 
@@ -223,10 +267,11 @@
       maxRounds,
       battlefield,
       chars,
+      teams,
       actionOrder:       [],
       currentActionIdx:  0,
       pendingDamageChoice: null,
-      winner: null,
+      winnerTeamIdx: null,
       lastDiceEvents: [],
       log: [`=== 第1ラウンド開始 === 戦場: ${battlefield.name}`],
     };
@@ -267,49 +312,55 @@
 
   /**
    * 現在の行動者が使用可能な忍法一覧を返す。
-   * @returns {{ id, name, ninjutsu, canUse, reason }[]}
+   * @returns {{ id, name, ninjutsu, canUse, reason, availableTargetIdxs }[]}
    */
   function getAvailableNinjutsu(state, skillsData, ninjutsuData) {
     if (state.phase !== PHASES.ACTION) return [];
     const actorIdx = state.actionOrder[state.currentActionIdx];
     if (actorIdx === undefined) return [];
     const actor    = state.chars[actorIdx];
-    const defIdx   = actorIdx === 0 ? 1 : 0;
-    const defender = state.chars[defIdx];
     const mods     = Core.getBattlefieldModifiers(state.battlefield);
+
+    // 敵キャラインデックス一覧（別チーム・生存者）
+    const enemyIdxs = state.chars
+      .map((c, i) => ({ c, i }))
+      .filter(({ c, i }) => i !== actorIdx && c.teamIdx !== actor.teamIdx && !isCharDefeated(c))
+      .map(({ i }) => i);
 
     return actor.ninjutsuIds.map(id => {
       const nin = ninjutsuData.find(n => n.id === id);
-      if (!nin) return { id, name: '?', canUse: false, reason: 'データなし' };
+      if (!nin) return { id, name: '?', canUse: false, reason: 'データなし', availableTargetIdxs: [] };
 
       if (nin.battle_usable === false)
-        return { id, name: nin.name, ninjutsu: nin, canUse: false, reason: '戦闘中使用不可' };
+        return { id, name: nin.name, ninjutsu: nin, canUse: false, reason: '戦闘中使用不可', availableTargetIdxs: [] };
 
       if ((nin.cost || 0) > (actor.plotValue || 0))
         return { id, name: nin.name, ninjutsu: nin, canUse: false,
-                 reason: `コスト不足（C${nin.cost}、プロット${actor.plotValue}）` };
-
-      // 間合いチェック: |自プロット - 相手プロット| ≤ 間合い（悪天候 +1）
-      const effectiveRange = (nin.range != null ? nin.range : 99) + (mods.rangeBonus || 0);
-      const distance = Math.abs((actor.plotValue || 0) - (defender.plotValue || 0));
-      if (distance > effectiveRange)
-        return { id, name: nin.name, ninjutsu: nin, canUse: false,
-                 reason: `間合外（距離${distance}、間合${effectiveRange}）` };
+                 reason: `コスト不足（C${nin.cost}、プロット${actor.plotValue}）`, availableTargetIdxs: [] };
 
       if (actor.conditions.includes('敗走') && nin.type === 'equip')
-        return { id, name: nin.name, ninjutsu: nin, canUse: false, reason: '敗走（忍具使用不可）' };
+        return { id, name: nin.name, ninjutsu: nin, canUse: false, reason: '敗走（忍具使用不可）', availableTargetIdxs: [] };
 
       if (actor.mahiBlockedField && nin.skill) {
         const skillEntry = skillsData.find(s => s.name === nin.skill);
         if (skillEntry && skillEntry.field === actor.mahiBlockedField)
           return { id, name: nin.name, ninjutsu: nin, canUse: false,
-                   reason: `マヒ（${actor.mahiBlockedField}の特技が使用不可）` };
+                   reason: `マヒ（${actor.mahiBlockedField}の特技が使用不可）`, availableTargetIdxs: [] };
       }
 
       if (actor.noroiBlockedNinjutsuId === id)
-        return { id, name: nin.name, ninjutsu: nin, canUse: false, reason: '呪い（この忍法が使用不可）' };
+        return { id, name: nin.name, ninjutsu: nin, canUse: false, reason: '呪い（この忍法が使用不可）', availableTargetIdxs: [] };
 
-      return { id, name: nin.name, ninjutsu: nin, canUse: true, reason: null };
+      const effectiveRange = (nin.range != null ? nin.range : 99) + (mods.rangeBonus || 0);
+      const availableTargetIdxs = enemyIdxs.filter(ti =>
+        Core.isInRange(actor.plotValue || 0, state.chars[ti].plotValue || 0, effectiveRange, 0)
+      );
+
+      if (nin.type === 'attack' && availableTargetIdxs.length === 0)
+        return { id, name: nin.name, ninjutsu: nin, canUse: false,
+                 reason: `間合外（有効な対象なし）`, availableTargetIdxs: [] };
+
+      return { id, name: nin.name, ninjutsu: nin, canUse: true, reason: null, availableTargetIdxs };
     });
   }
 
@@ -318,20 +369,21 @@
   /**
    * 現在の行動者が忍法を使用する（または null でパス）。
    * @param {string|null} ninjutsuId
+   * @param {number|null} targetIdx  - 攻撃対象の chars インデックス（パス時は null）
    */
-  function chooseAction(state, ninjutsuId, skillsData, ninjutsuData, rng) {
+  function chooseAction(state, ninjutsuId, targetIdx, skillsData, ninjutsuData, rng) {
     if (state.phase !== PHASES.ACTION) return state;
 
     const s       = cloneState(state);
     const actorIdx = s.actionOrder[s.currentActionIdx];
-    const defIdx   = actorIdx === 0 ? 1 : 0;
     const actor    = s.chars[actorIdx];
-    const defender = s.chars[defIdx];
     const mods     = Core.getBattlefieldModifiers(s.battlefield);
 
     if (ninjutsuId === null) {
       s.log.push(`[${actor.name}] パス`);
     } else {
+      const defIdx   = targetIdx;
+      const defender = s.chars[defIdx];
       const nin = ninjutsuData.find(n => n.id === ninjutsuId);
       if (!nin) return state;
 
@@ -436,15 +488,9 @@
       }
     }
 
-    // ===== 脱落チェック =====
-    if (isCharDefeated(s.chars[actorIdx])) {
-      s.log.push(`${s.chars[actorIdx].name} が脱落！`);
-      return endBattle(s, defIdx);
-    }
-    if (isCharDefeated(s.chars[defIdx])) {
-      s.log.push(`${s.chars[defIdx].name} が脱落！`);
-      return endBattle(s, actorIdx);
-    }
+    // ===== 脱落チェック（N人対応）=====
+    const victoryResult = checkVictory(s);
+    if (victoryResult) return victoryResult;
 
     s.chars[actorIdx].acted = true;
     return _advanceAction(s);
@@ -476,7 +522,7 @@
     if (isCharDefeated(s.chars[defIdx])) {
       s.log.push(`${s.chars[defIdx].name} が脱落！`);
       s.chars[atkIdx].acted = true;
-      return endBattle(s, atkIdx);
+      return checkVictory(s) || _advanceAction(s);
     }
 
     if (remainingHits > 0) {
@@ -486,7 +532,7 @@
       if (isCharDefeated(s.chars[defIdx])) {
         s.log.push(`${s.chars[defIdx].name} が脱落！`);
         s.chars[atkIdx].acted = true;
-        return endBattle(s, atkIdx);
+        return checkVictory(s) || _advanceAction(s);
       }
     }
 
@@ -520,13 +566,17 @@
       }
     }
 
-    // 脱落チェック（極地ダメージ後）
+    // 脱落チェック（N人対応）
+    let anyDefeated = false;
     for (let i = 0; i < s.chars.length; i++) {
       if (isCharDefeated(s.chars[i])) {
-        const wi = s.chars.length === 2 ? 1 - i : null;
         s.log.push(`${s.chars[i].name} が脱落！`);
-        return endBattle(s, wi);
+        anyDefeated = true;
       }
+    }
+    if (anyDefeated) {
+      const victoryResult = checkVictory(s);
+      if (victoryResult) return victoryResult;
     }
 
     // 逆凪リセット・次ラウンド準備
