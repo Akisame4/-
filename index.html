@@ -1699,9 +1699,9 @@ function onRoomUpdate(room) {
     if (myPlayerIdx === 0 && status === 'selecting') {
       const vals = Object.values(players);
       const allReady = vals.length >= maxP &&
-        vals.every(p => p && p.ready && p.charJson && p.teamIdx !== null);
+        vals.every(p => p && p.ready && p.charJson && p.teamIdx != null);
       if (allReady) {
-        const usedTeams = new Set(vals.map(p => p.teamIdx));
+        const usedTeams = new Set(vals.filter(p => p.teamIdx != null).map(p => p.teamIdx));
         if (usedTeams.size >= 2) _startOnlineBattle(room);
       }
     }
@@ -1797,7 +1797,7 @@ function renderOnlineRoomFromData(room) {
   const maxP    = room.maxPlayers || 2;
   const players = room.players || {};
   const myPlayer = players[myPlayerIdx] || null;
-  const myTeamIdx = myPlayer ? myPlayer.teamIdx : null;
+  const myTeamIdx = (myPlayer && myPlayer.teamIdx != null) ? myPlayer.teamIdx : null;
 
   // 部屋コード
   let html = `
@@ -1813,9 +1813,9 @@ function renderOnlineRoomFromData(room) {
     const p = players[i] || null;
     const entry = { idx: i, p };
     if (!p || !p.uid) { noTeam.push(entry); continue; }
-    if (p.teamIdx === 0) teamA.push(entry);
-    else if (p.teamIdx === 1) teamB.push(entry);
-    else noTeam.push(entry);
+    if (p.teamIdx == null) noTeam.push(entry);
+    else if (p.teamIdx === 0) teamA.push(entry);
+    else teamB.push(entry);
   }
 
   // チーム表示
@@ -1887,7 +1887,7 @@ function renderOnlineRoomFromData(room) {
   } else {
     // 準備完了
     const readyCount  = Object.values(players).filter(p => p && p.ready).length;
-    const teamsUsed   = new Set(Object.values(players).filter(p => p && p.teamIdx !== null).map(p => p.teamIdx));
+    const teamsUsed   = new Set(Object.values(players).filter(p => p && p.teamIdx != null).map(p => p.teamIdx));
     const allFullReady = readyCount >= maxP && teamsUsed.size >= 2;
     if (allFullReady) {
       html += `<p style="color:#e8c87a;margin-top:12px">全員準備完了！戦闘を開始します…</p>`;
