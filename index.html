@@ -941,12 +941,13 @@ function renderVelocityUI() {
 function renderBattleSkillUI() {
   const el = document.getElementById('battle-skill-ui');
   if (!el || !battleState) return;
-  const blocks = battleState.chars.map(c => `
-    <div class="battle-skill-block">
-      <div class="battle-skill-label">${esc(c.name)} の特技</div>
-      <div class="skill-table-wrap">${renderBattleSkillTable(c)}</div>
-    </div>`).join('');
-  el.innerHTML = `<div class="battle-skill-section"><div class="battle-skill-layout">${blocks}</div></div>`;
+  const myIdx = onlineMode ? myPlayerIdx : 0;
+  const c = battleState.chars[myIdx];
+  if (!c) return;
+  el.innerHTML = `<div class="battle-skill-section">
+    <div class="battle-skill-label">${esc(c.name)} の特技</div>
+    <div class="skill-table-wrap">${renderBattleSkillTable(c)}</div>
+  </div>`;
 }
 
 function renderBattleSkillTable(char) {
