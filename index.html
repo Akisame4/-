@@ -1785,7 +1785,7 @@ function renderOnlineRoomLocal(status, room) {
   renderOnlineRoomFromData({
     status,
     maxPlayers: 2,
-    players: { 0: { uid: getMyUid(), charId: null, ready: false, teamIdx: 0 } },
+    players: { 0: { uid: getMyUid(), ready: false } },
     teams: { 0: { name: 'チームA' }, 1: { name: 'チームB' } },
   });
 }
