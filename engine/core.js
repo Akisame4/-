@@ -59,29 +59,33 @@
     if (!requiredSkill || requiredSkill === '自由') return 5;
 
     const reqEntry = skillsData.find(s => s.name === requiredSkill);
-    if (!reqEntry) return 5; // 未知特技は基本値
+    if (!reqEntry) return 5;
 
-    const requiredFI = reqEntry.field_index;
+    const reqFI  = reqEntry.field_index;
+    const reqRow = reqEntry.row;
 
-    const myFIs = charSkillNames
+    const charSkills = charSkillNames
       .map(name => skillsData.find(s => s.name === name))
-      .filter(Boolean)
-      .map(s => s.field_index);
+      .filter(Boolean);
 
-    if (myFIs.length === 0) return 5 + 5;
+    if (charSkills.length === 0) return 5 + 21;
 
-    let minDist = Math.min(...myFIs.map(fi => Math.abs(fi - requiredFI)));
+    let minDist = Infinity;
+    for (const skill of charSkills) {
+      const rowDist = Math.abs(skill.row - reqRow);
 
-    // 得意分野スキップ：習得特技に得意分野が含まれ、かつ得意分野が必要分野の隣なら距離-1
-    if (
-      factionFavoredFieldIndex !== null &&
-      factionFavoredFieldIndex !== undefined &&
-      myFIs.includes(factionFavoredFieldIndex)
-    ) {
-      const favoredToRequired = Math.abs(factionFavoredFieldIndex - requiredFI);
-      if (favoredToRequired === 1) {
-        minDist = Math.max(0, minDist - 1);
+      // 得意分野に隣接するギャップは無料。それ以外は1コスト
+      const loFI = Math.min(skill.field_index, reqFI);
+      const hiFI = Math.max(skill.field_index, reqFI);
+      let paidGaps = 0;
+      for (let x = loFI; x < hiFI; x++) {
+        if (factionFavoredFieldIndex !== x && factionFavoredFieldIndex !== x + 1) {
+          paidGaps++;
+        }
       }
+
+      const dist = rowDist + paidGaps;
+      if (dist < minDist) minDist = dist;
     }
 
     return 5 + minDist;

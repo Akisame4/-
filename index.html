@@ -69,6 +69,9 @@ table.skill-tbl input[type=checkbox] { accent-color: #8a6030; width: 13px; heigh
 /* 得意分野列: 両サイドに黒の太線 */
 table.skill-tbl th.favored { background: #2a1e00; color: #e8c87a; border-left: 3px solid #000; border-right: 3px solid #000; }
 table.skill-tbl td.favored { border-left: 3px solid #000; border-right: 3px solid #000; }
+/* 空マス列 */
+table.skill-tbl th.gap { background: #0d0d0d; border: 1px solid #1a1a1a; min-width: 18px; width: 18px; padding: 0; }
+table.skill-tbl td.gap { background: #0d0d0d; border: 1px solid #1a1a1a; padding: 0; }
 
 /* 忍法カード */
 .nin-section { margin-bottom: 16px; }
@@ -575,11 +578,11 @@ function renderSkillTable() {
   const faction = selFaction ? MD.factions.find(f => f.id === selFaction) : null;
   const favoredField = faction ? faction.favored_field : null;
 
-  // ヘッダー
+  // ヘッダー: [空マス][器術][空マス][体術]...[空マス][妖術]（末尾に空マスなし）
   let html = '<thead><tr>';
   MD.fields.forEach(f => {
     const fav = f.name === favoredField ? 'favored' : '';
-    html += `<th class="${fav}">${esc(f.name)}</th>`;
+    html += `<th class="gap"></th><th class="${fav}">${esc(f.name)}</th>`;
   });
   html += '</tr></thead><tbody>';
 
@@ -590,7 +593,7 @@ function renderSkillTable() {
       const skill = MD.skillsByField[f.name][row - 1];
       const fav   = f.name === favoredField ? 'favored' : '';
       const chk   = selSkills.has(skill.name) ? 'checked' : '';
-      html += `<td class="${fav}">
+      html += `<td class="gap"></td><td class="${fav}">
         <label class="${chk}">
           <input type="checkbox" ${chk ? 'checked' : ''}
             onchange="App.toggleSkill('${esc(skill.name)}')">
