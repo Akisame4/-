@@ -165,6 +165,20 @@ table.skill-tbl td.gap.favored-gap { background: #000; border-color: #000; }
 .conditions-row { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
 .cond-tag { padding: 1px 7px; border-radius: 3px; font-size: 0.73em; background: #2a1a00; color: #c87; border: 1px solid #4a3a10; }
 .cond-tag.severe { background: #2a0808; color: #f88; border-color: #5a1818; }
+/* キャラパネル状態色 */
+.char-panel.hp-damaged { border-color: #7a2020 !important; background: #1a0d0d; }
+.char-panel.hp-critical { border-color: #cc1111 !important; background: #1e0808; box-shadow: 0 0 8px #6600003a; }
+.char-panel.has-conditions { box-shadow: 0 0 0 2px #7a6000; }
+.char-panel.hp-critical.has-conditions { box-shadow: 0 0 8px #6600003a, 0 0 0 2px #7a6000; }
+/* バトル中特技テーブル */
+.battle-skill-section { margin: 14px 0 10px; }
+.battle-skill-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.battle-skill-block { min-width: 0; overflow-x: auto; }
+.battle-skill-label { font-size: 0.75em; color: #888; margin-bottom: 4px; }
+table.skill-tbl.bst { font-size: 0.72em; }
+table.skill-tbl.bst th { padding: 3px 8px; min-width: 72px; }
+table.skill-tbl.bst td label { padding: 2px 6px; cursor: default; pointer-events: none; }
+table.skill-tbl.bst input[type=checkbox] { pointer-events: none; }
 
 /* プロット選択 */
 .plot-section { margin-bottom: 12px; }
@@ -347,6 +361,9 @@ table.skill-tbl td.gap.favored-gap { background: #000; border-color: #000; }
 
     <!-- VELOCITYトラッカー（常時表示） -->
     <div id="battle-velocity-ui"></div>
+
+    <!-- 特技テーブル（常時表示） -->
+    <div id="battle-skill-ui"></div>
 
     <!-- バトルログ -->
     <div style="font-size:0.78em;color:#666;margin-top:12px;margin-bottom:4px">戦闘ログ</div>
@@ -906,6 +923,7 @@ function renderBattle() {
   renderCharPanels();
   renderPhaseUI();
   renderVelocityUI();
+  renderBattleSkillUI();
   renderBattleLog();
 }
 
@@ -918,6 +936,47 @@ function renderVelocityUI() {
     return;
   }
   el.innerHTML = renderVelocityTracker(s);
+}
+
+function renderBattleSkillUI() {
+  const el = document.getElementById('battle-skill-ui');
+  if (!el || !battleState) return;
+  const blocks = battleState.chars.map(c => `
+    <div class="battle-skill-block">
+      <div class="battle-skill-label">${esc(c.name)} の特技</div>
+      <div class="skill-table-wrap">${renderBattleSkillTable(c)}</div>
+    </div>`).join('');
+  el.innerHTML = `<div class="battle-skill-section"><div class="battle-skill-layout">${blocks}</div></div>`;
+}
+
+function renderBattleSkillTable(char) {
+  const favoredFI = char.favoredFieldIndex ?? -1;
+  const mySkills  = new Set(char.skillNames || []);
+  let html = '<table class="skill-tbl bst"><thead><tr>';
+  MD.fields.forEach((f, i) => {
+    const fav    = i === favoredFI ? 'favored' : '';
+    const gapFav = (i === favoredFI || i === favoredFI + 1) ? 'favored-gap' : '';
+    html += `<th class="gap ${gapFav}"></th><th class="${fav}">${esc(f.name)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  for (let row = 1; row <= 11; row++) {
+    html += '<tr>';
+    MD.fields.forEach((f, i) => {
+      const skill  = MD.skillsByField[f.name][row - 1];
+      const fav    = i === favoredFI ? 'favored' : '';
+      const gapFav = (i === favoredFI || i === favoredFI + 1) ? 'favored-gap' : '';
+      const chk    = mySkills.has(skill.name) ? 'checked' : '';
+      html += `<td class="gap ${gapFav}"></td><td class="${fav}">
+        <label class="${chk}">
+          <input type="checkbox" ${chk ? 'checked' : ''} disabled>
+          ${esc(skill.name)}
+        </label>
+      </td>`;
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
 }
 
 function renderCharPanels() {
@@ -945,7 +1004,13 @@ function renderCharPanels() {
 
     const isActive = battleState.phase === 'action' &&
       battleState.actionOrder[battleState.currentActionIdx] === i;
-    panel.className = 'char-panel' + (c.sakanagi ? ' is-sakanagi' : '') + (isActive ? '' : '');
+    const hpMax2 = c.hpSlots.length;
+    let cls = 'char-panel';
+    if (c.sakanagi) cls += ' is-sakanagi';
+    if (hp < hpMax2 && hp > Math.ceil(hpMax2 / 2)) cls += ' hp-damaged';
+    if (hp <= Math.ceil(hpMax2 / 2) && hp > 0) cls += ' hp-critical';
+    if (c.conditions.length > 0) cls += ' has-conditions';
+    panel.className = cls;
     panel.style.borderColor = isActive ? '#8a6030' : '';
 
     const av = battleAvatars[i];
