@@ -1530,7 +1530,7 @@ const OnlineApp = {
     startRoomListener();
   },
 
-  // ===== チーム選択 =====
+  // ===== チーム選択（いつでも変更可） =====
   selectTeam(teamIdx) {
     if (!roomRef) return;
     roomRef.child('players/' + myPlayerIdx + '/teamIdx').set(teamIdx);
@@ -1573,17 +1573,15 @@ const OnlineApp = {
     startRoomListener();
   },
 
-  // ===== キャラクター選択（オンライン待機室から） =====
+  // ===== キャラクター選択（いつでも変更可） =====
   selectChar(charId) {
     if (!roomRef) return;
     const chars = NinjaBattleCharacter.loadCharacters();
     const char  = chars.find(c => c.id === charId);
     if (!char) return;
-
     roomRef.child('players/' + myPlayerIdx).update({
       charId:   charId,
       charJson: JSON.stringify(char),
-      ready:    true,
     });
   },
 
@@ -1843,66 +1841,82 @@ function renderOnlineRoomFromData(room) {
     html += `<p style="color:#555;font-size:0.85em">空きスロット: ${pendingSlots.length}人分</p>`;
   }
 
-  // ===== 自分の操作エリア =====
+  // ===== 自分の操作エリア（チーム＋キャラ同時表示、いつでも変更可） =====
   if (!myPlayer || !myPlayer.uid) {
     html += `<p style="color:#888">接続中…</p>`;
-  } else if (myTeamIdx === null) {
-    // チーム選択
-    html += `<div style="margin-top:16px;padding:14px;border:1px solid #8a6030;border-radius:8px">
-      <h3 style="margin-bottom:12px">チームを選んでください</h3>
-      <div style="display:flex;gap:12px">
-        <button class="primary" style="flex:1;padding:12px;background:#2a4a2a;border-color:#4a8a4a;font-size:1em"
-          onclick="OnlineApp.selectTeam(0)">チームA に参加</button>
-        <button class="primary" style="flex:1;padding:12px;background:#2a2a4a;border-color:#4a4a8a;font-size:1em"
-          onclick="OnlineApp.selectTeam(1)">チームB に参加</button>
+  } else {
+    const myCharId  = myPlayer.charId || null;
+    const isReady   = myTeamIdx != null && myPlayer.charJson != null;
+
+    html += `<div style="margin-top:16px;padding:14px;border:1px solid #8a6030;border-radius:8px">`;
+
+    // チーム選択（選択済みはハイライト、いつでも切替可）
+    html += `<div style="margin-bottom:14px">
+      <div style="font-size:0.85em;color:#aaa;margin-bottom:8px">チームを選ぶ（変更可）</div>
+      <div style="display:flex;gap:10px">
+        <button class="primary" style="flex:1;padding:10px;font-size:0.95em;
+            ${myTeamIdx === 0 ? 'background:#1a4a1a;border-color:#6ac06a;color:#6ac06a' : 'background:#1a2a1a;border-color:#3a6a3a'}"
+          onclick="OnlineApp.selectTeam(0)">
+          ${myTeamIdx === 0 ? '✓ ' : ''}チームA
+        </button>
+        <button class="primary" style="flex:1;padding:10px;font-size:0.95em;
+            ${myTeamIdx === 1 ? 'background:#1a1a4a;border-color:#6a6ac0;color:#6a6ac0' : 'background:#1a1a2a;border-color:#3a3a6a'}"
+          onclick="OnlineApp.selectTeam(1)">
+          ${myTeamIdx === 1 ? '✓ ' : ''}チームB
+        </button>
       </div>
     </div>`;
-  } else if (!myPlayer.ready) {
-    // キャラ選択
+
+    // キャラ選択（選択済みはハイライト、いつでも切替可）
     const chars = NinjaBattleCharacter.loadCharacters();
-    const teamLabel = myTeamIdx === 0 ? 'チームA' : 'チームB';
-    html += `<div style="margin-top:16px">
-      <h3>使用するキャラクターを選ぶ <span style="font-size:0.75em;color:#888">（${teamLabel}）</span></h3>`;
+    html += `<div style="margin-bottom:10px">
+      <div style="font-size:0.85em;color:#aaa;margin-bottom:8px">キャラクターを選ぶ（変更可）</div>`;
     if (chars.length === 0) {
       html += `<p style="color:#f88">キャラクターがいません。ホームに戻り作成してください。</p>`;
     } else {
       html += `<div class="setup-grid">
         ${chars.map(c => `
-          <button class="setup-char-btn selected" onclick="OnlineApp.selectChar('${c.id}')">
+          <button class="setup-char-btn selected" onclick="OnlineApp.selectChar('${c.id}')"
+            style="${c.id === myCharId ? 'border-color:#e8c87a;background:#2a1a00;' : ''}">
+            ${c.id === myCharId ? '<span style="color:#e8c87a;font-size:0.75em;display:block">✓ 選択中</span>' : ''}
             <strong>${esc(c.name)}</strong><br>
             <span style="font-size:0.8em;color:#aaa">${esc(c.factionName)}　HP${c.hpMax}</span>
           </button>`).join('')}
       </div>`;
     }
     html += `</div>`;
-  } else {
-    // 準備完了済みの自分のステータス表示
+
+    // 準備状態 + スタートボタン（ホストのみ）
     const connectedPlayers = Object.values(players).filter(p => p && p.uid);
-    const readyPlayers     = connectedPlayers.filter(p => p.ready && p.charJson && p.teamIdx != null);
+    const readyPlayers     = connectedPlayers.filter(p => p.charJson && p.teamIdx != null);
     const readyCount       = readyPlayers.length;
     const teamsUsed        = new Set(readyPlayers.map(p => p.teamIdx));
 
+    if (isReady) {
+      html += `<p style="color:#6c6;font-size:0.85em;margin-bottom:10px">✓ 準備完了（${readyCount}/${connectedPlayers.length}人）</p>`;
+    } else {
+      const missing = [myTeamIdx == null ? 'チーム' : null, !myPlayer.charJson ? 'キャラクター' : null].filter(Boolean);
+      html += `<p style="color:#888;font-size:0.85em;margin-bottom:10px">未選択: ${missing.join('・')}（${readyCount}/${connectedPlayers.length}人準備済）</p>`;
+    }
+
     if (myPlayerIdx === 0) {
-      // ホスト: スタートボタン
       const canStart = readyCount >= 2 && teamsUsed.size >= 2;
-      html += `<div style="margin-top:16px;padding:14px;border:1px solid #8a6030;border-radius:8px">
-        <div style="margin-bottom:8px;color:#aaa;font-size:0.85em">準備完了: ${readyCount}/${connectedPlayers.length}人</div>`;
       if (canStart) {
         const notReadyCount = connectedPlayers.length - readyCount;
-        html += `<button class="primary" style="width:100%;padding:14px;font-size:1.1em;background:#4a2a0a;border-color:#e8c87a"
+        html += `<button class="primary" style="width:100%;padding:13px;font-size:1.05em;background:#3a1a00;border-color:#e8c87a"
           onclick="OnlineApp.hostStartBattle()">⚔ 戦闘開始</button>`;
         if (notReadyCount > 0) {
-          html += `<p style="color:#888;font-size:0.8em;margin-top:6px">※ ${notReadyCount}人が未準備ですが開始できます（その人は参戦しません）</p>`;
+          html += `<p style="color:#888;font-size:0.8em;margin-top:6px">※ ${notReadyCount}人未準備（その人は参戦しません）</p>`;
         }
       } else {
-        let reason = readyCount < 2 ? `準備完了が${readyCount}人（2人以上必要）` : '両チームに最低1人必要';
-        html += `<p style="color:#888;font-size:0.85em">まだ開始できません：${reason}</p>`;
+        const reason = readyCount < 2 ? `準備完了が${readyCount}人（2人以上必要）` : '両チームに最低1人必要';
+        html += `<p style="color:#666;font-size:0.85em">⚔ 戦闘開始できません：${reason}</p>`;
       }
-      html += `</div>`;
     } else {
-      // ゲスト: 待機メッセージ
-      html += `<p style="color:#6c6;margin-top:12px">✓ 準備完了 — ホストのスタートを待っています…（${readyCount}/${connectedPlayers.length}人準備済）</p>`;
+      html += `<p style="color:#888;font-size:0.85em">ホストのスタートを待っています…</p>`;
     }
+
+    html += `</div>`;
   }
 
   el.innerHTML = html;
@@ -1914,10 +1928,11 @@ function _renderOnlinePlayerRow(idx, player) {
   if (!player || !player.uid) {
     return `<div style="color:#555;font-size:0.85em;padding:4px 0">P${idx+1}: 接続待ち…</div>`;
   }
-  const charInfo = player.ready && player.charJson
+  const isReady  = player.charJson != null && player.teamIdx != null;
+  const charInfo = isReady
     ? (() => { try { const c = JSON.parse(player.charJson); return `${esc(c.name)}（${esc(c.factionName)}）`; } catch { return '?'; } })()
     : '選択中…';
-  const badge = player.ready
+  const badge = isReady
     ? '<span style="color:#6c6;font-size:0.75em">✓</span>'
     : '<span style="color:#888;font-size:0.75em">…</span>';
   return `<div style="padding:4px 0;font-size:0.9em">P${idx+1}${meLabel} ${badge} ${charInfo}</div>`;
