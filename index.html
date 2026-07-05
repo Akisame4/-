@@ -223,6 +223,13 @@ table.skill-tbl.bst input[type=checkbox] { pointer-events: none; }
 /* 対戦セットアップ */
 .setup-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .setup-char-btn { padding: 8px 14px; text-align: left; }
+.char-card-wrap { position: relative; display: inline-block; }
+.char-card-wrap .detail-btn {
+  position: absolute; top: 4px; right: 4px;
+  padding: 2px 7px; font-size: 0.72em; background: #222;
+  border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer; z-index: 1;
+}
+.char-card-wrap .detail-btn:hover { background: #333; color: #fff; }
 .bf-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 </style>
 </head>
@@ -850,12 +857,7 @@ const BattleApp = {
       <h3>対戦相手を選ぶ</h3>
       ${others.length === 0
         ? '<p style="color:#666">キャラクターが1体しかいません。もう1体作成してください。</p>'
-        : `<div class="setup-grid">${others.map(c =>
-            `<button class="setup-char-btn selected"
-               onclick="BattleApp.startBattle('${c.id}')">
-               ${esc(c.name)}<br><span style="font-size:0.8em;color:#888">${esc(c.factionName)}</span>
-             </button>`
-          ).join('')}</div>`
+        : `<div class="setup-grid">${others.map(c => _makeCharCard(c, null, `BattleApp.startBattle('${c.id}')`)).join('')}</div>`
       }
       <h3 style="margin-top:16px">戦場を選ぶ</h3>
       <div class="bf-grid" id="bf-select">${bfOptions}</div>
@@ -1875,13 +1877,7 @@ function renderOnlineRoomFromData(room) {
       html += `<p style="color:#f88">キャラクターがいません。ホームに戻り作成してください。</p>`;
     } else {
       html += `<div class="setup-grid">
-        ${chars.map(c => `
-          <button class="setup-char-btn selected" onclick="OnlineApp.selectChar('${c.id}')"
-            style="${c.id === myCharId ? 'border-color:#e8c87a;background:#2a1a00;' : ''}">
-            ${c.id === myCharId ? '<span style="color:#e8c87a;font-size:0.75em;display:block">✓ 選択中</span>' : ''}
-            <strong>${esc(c.name)}</strong><br>
-            <span style="font-size:0.8em;color:#aaa">${esc(c.factionName)}　HP${c.hpMax}</span>
-          </button>`).join('')}
+        ${chars.map(c => _makeCharCard(c, myCharId, `OnlineApp.selectChar('${c.id}')`)).join('')}
       </div>`;
     }
     html += `</div>`;
@@ -1938,6 +1934,84 @@ function _renderOnlinePlayerRow(idx, player) {
   return `<div style="padding:4px 0;font-size:0.9em">P${idx+1}${meLabel} ${badge} ${charInfo}</div>`;
 }
 
+// ===== キャラクター詳細モーダル =====
+function showCharDetail(charId) {
+  const chars = NinjaBattleCharacter.loadCharacters();
+  const c = chars.find(x => x.id === charId);
+  if (!c || !MD) return;
+
+  const FIELDS = ['器術', '体術', '忍術', '謀術', '戦術', '妖術'];
+  let html = `<button onclick="document.getElementById('char-detail-modal').style.display='none'"
+    style="position:absolute;top:10px;right:10px;padding:4px 10px;background:#333;border:1px solid #555;border-radius:4px;cursor:pointer;color:#aaa">✕ 閉じる</button>`;
+
+  // アバター＋基本情報
+  if (c.avatar) html += `<img src="${c.avatar}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;float:right;margin:0 0 8px 12px">`;
+  html += `<h2 style="margin:0 0 4px">${esc(c.name)}</h2>`;
+  html += `<p style="color:#aaa;margin:0 0 8px">${esc(c.factionName || '')}　生命力: ${c.hpMax}</p>`;
+  html += `<div style="clear:both"></div>`;
+
+  // 習得特技（分野別）
+  html += `<h3 style="margin:14px 0 8px;font-size:0.9em;color:#e8c87a;border-bottom:1px solid #333;padding-bottom:4px">習得特技</h3>`;
+  const skillsByField = {};
+  (c.skillNames || []).forEach(name => {
+    const s = MD.skills.find(x => x.name === name);
+    const field = s ? FIELDS[s.field_index] : '?';
+    if (!skillsByField[field]) skillsByField[field] = [];
+    skillsByField[field].push(name);
+  });
+  html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">`;
+  FIELDS.forEach(f => {
+    if (!skillsByField[f]) return;
+    html += `<span style="background:#1a1a2a;border:1px solid #3a3a5a;border-radius:4px;padding:3px 9px;font-size:0.82em">
+      <span style="color:#777;margin-right:4px">${f}</span>${skillsByField[f].join('・')}
+    </span>`;
+  });
+  html += `</div>`;
+
+  // 忍法一覧
+  html += `<h3 style="margin:0 0 8px;font-size:0.9em;color:#e8c87a;border-bottom:1px solid #333;padding-bottom:4px">忍法</h3>`;
+  const ninjutsuList = (c.ninjutsuIds || []).map(id => MD.ninjutsu.find(x => x.id === id)).filter(Boolean);
+  if (ninjutsuList.length === 0) {
+    html += `<p style="color:#666">忍法なし</p>`;
+  } else {
+    const typeBg    = { attack: '#2a1010', support: '#102010', equip: '#101030' };
+    const typeLabel = { attack: '攻撃', support: 'サポート', equip: '装備' };
+    html += ninjutsuList.map(n => {
+      const meta = [
+        n.timing  ? `タイミング: ${n.timing}` : null,
+        n.cost  != null ? `コスト: ${n.cost}` : null,
+        n.range != null ? `間合: ${n.range}` : null,
+        n.skill ? `指定特技: ${n.skill}` : null,
+      ].filter(Boolean).join('　');
+      return `<div style="border:1px solid #333;border-radius:6px;padding:10px;margin-bottom:8px;background:${typeBg[n.type]||'#181818'}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <strong>${esc(n.name)}</strong>
+          <span style="font-size:0.73em;color:#aaa;border:1px solid #444;border-radius:3px;padding:1px 5px">${typeLabel[n.type]||n.type||''}</span>
+        </div>
+        ${meta ? `<div style="font-size:0.78em;color:#666;margin-bottom:5px">${esc(meta)}</div>` : ''}
+        <div style="font-size:0.84em;color:#ccc;line-height:1.55">${esc(n.effect || '')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('char-detail-content').innerHTML = html;
+  document.getElementById('char-detail-modal').style.display = 'flex';
+}
+
+// ===== キャラカードHTML生成（選択+詳細ボタン付き）=====
+function _makeCharCard(c, selectedCharId, onSelectCode) {
+  const isSel = c.id === selectedCharId;
+  return `<div class="char-card-wrap">
+    <button class="setup-char-btn selected" onclick="${onSelectCode}"
+      style="${isSel ? 'border-color:#e8c87a;background:#2a1a00;' : ''}">
+      ${isSel ? '<span style="color:#e8c87a;font-size:0.73em;display:block">✓ 選択中</span>' : ''}
+      <strong>${esc(c.name)}</strong><br>
+      <span style="font-size:0.8em;color:#aaa">${esc(c.factionName)}　HP${c.hpMax}</span>
+    </button>
+    <button class="detail-btn" onclick="showCharDetail('${c.id}')">詳細</button>
+  </div>`;
+}
+
 // ===== オンライン時の「自分のターンか」チェック =====
 // renderPlotUI / renderActionUI 等で使う
 function _isMyTurn() {
@@ -1959,6 +2033,14 @@ function _isMyTurn() {
   return false;
 }
 </script>
+
+<!-- キャラクター詳細モーダル -->
+<div id="char-detail-modal" onclick="this.style.display='none'"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;overflow-y:auto;padding:20px;box-sizing:border-box">
+  <div id="char-detail-content" onclick="event.stopPropagation()"
+    style="background:#111;border:1px solid #555;border-radius:10px;padding:24px;max-width:560px;margin:0 auto;position:relative;line-height:1.6">
+  </div>
+</div>
 
 <!-- ダイスアニメーションオーバーレイ -->
 <div id="dice-overlay" onclick="skipDiceAnimation()">
