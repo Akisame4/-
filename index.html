@@ -1940,33 +1940,18 @@ function showCharDetail(charId) {
   const c = chars.find(x => x.id === charId);
   if (!c || !MD) return;
 
-  const FIELDS = ['器術', '体術', '忍術', '謀術', '戦術', '妖術'];
   let html = `<button onclick="document.getElementById('char-detail-modal').style.display='none'"
     style="position:absolute;top:10px;right:10px;padding:4px 10px;background:#333;border:1px solid #555;border-radius:4px;cursor:pointer;color:#aaa">✕ 閉じる</button>`;
 
-  // アバター＋基本情報
-  if (c.avatar) html += `<img src="${c.avatar}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;float:right;margin:0 0 8px 12px">`;
+  // アバター＋基本情報（アバターは閉じるボタンと重ならないよう margin-top を確保）
+  if (c.avatar) html += `<img src="${c.avatar}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;float:right;margin:36px 0 8px 12px">`;
   html += `<h2 style="margin:0 0 4px">${esc(c.name)}</h2>`;
   html += `<p style="color:#aaa;margin:0 0 8px">${esc(c.factionName || '')}　生命力: ${c.hpMax}</p>`;
   html += `<div style="clear:both"></div>`;
 
-  // 習得特技（分野別）
+  // 習得特技（テーブル形式）
   html += `<h3 style="margin:14px 0 8px;font-size:0.9em;color:#e8c87a;border-bottom:1px solid #333;padding-bottom:4px">習得特技</h3>`;
-  const skillsByField = {};
-  (c.skillNames || []).forEach(name => {
-    const s = MD.skills.find(x => x.name === name);
-    const field = s ? FIELDS[s.field_index] : '?';
-    if (!skillsByField[field]) skillsByField[field] = [];
-    skillsByField[field].push(name);
-  });
-  html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">`;
-  FIELDS.forEach(f => {
-    if (!skillsByField[f]) return;
-    html += `<span style="background:#1a1a2a;border:1px solid #3a3a5a;border-radius:4px;padding:3px 9px;font-size:0.82em">
-      <span style="color:#777;margin-right:4px">${f}</span>${skillsByField[f].join('・')}
-    </span>`;
-  });
-  html += `</div>`;
+  html += `<div class="skill-table-wrap" style="margin-bottom:14px;font-size:0.78em">${renderBattleSkillTable(c)}</div>`;
 
   // 忍法一覧
   html += `<h3 style="margin:0 0 8px;font-size:0.9em;color:#e8c87a;border-bottom:1px solid #333;padding-bottom:4px">忍法</h3>`;
