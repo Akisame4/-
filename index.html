@@ -330,24 +330,10 @@ table.skill-tbl.bst input[type=checkbox] { pointer-events: none; }
     </div>
     <div id="online-room-setup" style="display:none">
       <h2>部屋を作る</h2>
-      <p class="subtitle">参加人数を選んでください（最大10人）</p>
+      <p class="subtitle">最大10人まで参加できます</p>
       <div style="display:flex;flex-direction:column;gap:12px;max-width:320px;margin-top:16px">
-        <div style="display:flex;align-items:center;gap:12px">
-          <label style="font-size:0.95em;color:#ccc">人数：</label>
-          <select id="room-max-players" style="font-size:1.1em;padding:8px 12px;background:#222;color:#fff;border:1px solid #555;border-radius:6px">
-            <option value="2">2人</option>
-            <option value="3">3人</option>
-            <option value="4">4人</option>
-            <option value="5">5人</option>
-            <option value="6">6人</option>
-            <option value="7">7人</option>
-            <option value="8">8人</option>
-            <option value="9">9人</option>
-            <option value="10">10人</option>
-          </select>
-        </div>
-        <p style="font-size:0.8em;color:#888">※ チームは参加後に各自が自由に選べます</p>
-        <button class="primary" style="padding:12px" onclick="OnlineApp.createRoom(parseInt(document.getElementById('room-max-players').value))">
+        <p style="font-size:0.8em;color:#888">※ チームは参加後に各自が自由に選べます<br>※ ホストが準備完了を確認してスタートボタンを押します</p>
+        <button class="primary" style="padding:12px" onclick="OnlineApp.createRoom()">
           部屋を作る
         </button>
         <button onclick="document.getElementById('online-room-setup').style.display='none';document.getElementById('online-main').style.display=''">← 戻る</button>
@@ -1522,30 +1508,20 @@ const OnlineApp = {
   },
 
   // ===== 部屋を作る =====
-  async createRoom(maxPlayers) {
-    maxPlayers = Math.min(10, Math.max(2, maxPlayers || 2));
-
+  async createRoom() {
     const db   = getDb();
     myPlayerIdx = 0;
     roomCode    = genRoomCode();
     roomRef     = db.ref('rooms/' + roomCode);
     onlineMode  = true;
 
-    // 全スロット teamIdx: null（参加後に各自が選ぶ）
-    const players = {};
-    for (let i = 0; i < maxPlayers; i++) {
-      players[i] = { uid: i === 0 ? getMyUid() : null, teamIdx: null, ready: false, charJson: null, charId: null };
-    }
-    const plots = {};
-    for (let i = 0; i < maxPlayers; i++) plots[i] = null;
-
     await roomRef.set({
       status:    'waiting',
       createdAt: Date.now(),
-      maxPlayers,
+      maxPlayers: 10,
       teams:     { 0: { name: 'チームA' }, 1: { name: 'チームB' } },
-      plots,
-      players,
+      plots:     {},
+      players:   { 0: { uid: getMyUid(), teamIdx: null, ready: false, charJson: null, charId: null } },
       state:     null,
     });
 
@@ -1560,6 +1536,13 @@ const OnlineApp = {
     roomRef.child('players/' + myPlayerIdx + '/teamIdx').set(teamIdx);
   },
 
+  // ===== ホストがスタートを押す =====
+  async hostStartBattle() {
+    if (!roomRef || myPlayerIdx !== 0) return;
+    const snap = await roomRef.once('value');
+    _startOnlineBattle(snap.val());
+  },
+
   // ===== 部屋に入る =====
   async joinRoom() {
     const input = document.getElementById('room-code-input');
@@ -1570,31 +1553,21 @@ const OnlineApp = {
     const snap = await db.ref('rooms/' + code).once('value');
     const room = snap.val();
     if (!room)                     { alert('部屋が見つかりません'); return; }
-    if (room.status !== 'waiting') { alert('この部屋には参加できません（満員か対戦中）'); return; }
+    if (room.status !== 'waiting') { alert('この部屋には参加できません（対戦中）'); return; }
 
-    // N人対応: 空きスロット（uid=null）を探す
-    const maxP    = room.maxPlayers || 2;
     const players = room.players || {};
-    let emptySlot = null;
-    for (let i = 0; i < maxP; i++) {
-      if (!players[i] || !players[i].uid) { emptySlot = i; break; }
-    }
-    if (emptySlot === null) { alert('部屋が満員です'); return; }
+    const connectedCount = Object.values(players).filter(p => p && p.uid).length;
+    if (connectedCount >= 10) { alert('部屋が満員です（最大10人）'); return; }
 
-    myPlayerIdx = emptySlot;
+    // 新しいスロットは現在のプレイヤー数（連番）
+    myPlayerIdx = Object.keys(players).length;
     roomCode    = code;
     roomRef     = db.ref('rooms/' + code);
     onlineMode  = true;
 
-    await roomRef.child('players/' + emptySlot).update({ uid: getMyUid(), ready: false });
-
-    // 全スロットが埋まったら selecting に移行
-    const updatedPlayers = { ...players, [emptySlot]: { ...players[emptySlot], uid: getMyUid() } };
-    const allSlotsFilled = Object.keys(updatedPlayers).length >= maxP &&
-      Object.values(updatedPlayers).every(p => p && p.uid);
-    if (allSlotsFilled) {
-      await roomRef.child('status').set('selecting');
-    }
+    await roomRef.child('players/' + myPlayerIdx).set({
+      uid: getMyUid(), teamIdx: null, ready: false, charJson: null, charId: null,
+    });
 
     showScreen('online-room');
     startRoomListener();
@@ -1692,19 +1665,8 @@ function onRoomUpdate(room) {
   const maxP     = room.maxPlayers || 2;
   const players  = room.players || {};
 
-  if (status === 'waiting' || status === 'selecting') {
+  if (status === 'waiting') {
     renderOnlineRoomFromData(room);
-
-    // 全員 ready ＋ チーム選択済み ＋ 2チーム以上 → ホストが戦闘開始
-    if (myPlayerIdx === 0 && status === 'selecting') {
-      const vals = Object.values(players);
-      const allReady = vals.length >= maxP &&
-        vals.every(p => p && p.ready && p.charJson && p.teamIdx != null);
-      if (allReady) {
-        const usedTeams = new Set(vals.filter(p => p.teamIdx != null).map(p => p.teamIdx));
-        if (usedTeams.size >= 2) _startOnlineBattle(room);
-      }
-    }
   }
 
   if (status === 'battle' && room.state) {
@@ -1713,15 +1675,25 @@ function onRoomUpdate(room) {
     const diceEvents = newState.lastDiceEvents || [];
     const shouldAnimate = diceEvents.length > 0 && newState.log.length > prevLogLen;
 
-    battleState = newState;
-    if (room.players) {
-      battleAvatars = Object.keys(players)
-        .sort((a, b) => Number(a) - Number(b))
-        .map(i => {
-          try { const p = players[i]; return p && p.charJson ? (JSON.parse(p.charJson).avatar || null) : null; }
-          catch { return null; }
-        });
+    // slotToBattleIdx でバトルchar番号に変換（スタート後に確定）
+    if (room.slotToBattleIdx) {
+      const battleIdx = room.slotToBattleIdx[myPlayerIdx];
+      if (battleIdx != null) myPlayerIdx = battleIdx;
     }
+
+    battleState = newState;
+
+    // battleAvatars は実際の戦闘キャラ順（readyEntries 順）
+    if (room.slotToBattleIdx) {
+      const slots = Object.entries(room.slotToBattleIdx)
+        .sort(([, a], [, b]) => a - b)
+        .map(([slotIdx]) => slotIdx);
+      battleAvatars = slots.map(si => {
+        try { const p = players[si]; return p && p.charJson ? (JSON.parse(p.charJson).avatar || null) : null; }
+        catch { return null; }
+      });
+    }
+
     showScreen('battle');
 
     if (shouldAnimate) {
@@ -1756,22 +1728,41 @@ function _checkAndApplyPlots(room, state) {
 
 // ===== ホストが戦闘を開始する =====
 async function _startOnlineBattle(room) {
-  const maxP    = room.maxPlayers || 2;
   const players = room.players || {};
   const teams   = room.teams || { 0: { name: 'チームA' }, 1: { name: 'チームB' } };
 
-  const charSheets = [];
-  for (let i = 0; i < maxP; i++) {
-    const p = players[i];
-    if (!p || !p.charJson) return;
+  // 準備完了（charJson あり + teamIdx あり）のプレイヤーだけを収集（スロット番号順）
+  const readyEntries = Object.entries(players)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .filter(([, p]) => p && p.uid && p.charJson && p.teamIdx != null);
+
+  if (readyEntries.length < 2) return;
+  const usedTeams = new Set(readyEntries.map(([, p]) => p.teamIdx));
+  if (usedTeams.size < 2) return;
+
+  const charSheets = readyEntries.map(([, p]) => {
     const c = JSON.parse(p.charJson);
-    c.teamIdx = p.teamIdx != null ? p.teamIdx : i;
-    charSheets.push(c);
-  }
+    c.teamIdx = p.teamIdx;
+    return c;
+  });
+
+  // バトル用プロット枠を人数分初期化
+  const plotsObj = {};
+  charSheets.forEach((_, i) => { plotsObj[i] = null; });
+
+  // スロットindex → バトルcharIndex のマッピングを保存（後でmyPlayerIdxを変換するために使う）
+  const slotToBattleIdx = {};
+  readyEntries.forEach(([slotIdx], battleIdx) => { slotToBattleIdx[slotIdx] = battleIdx; });
 
   const teamsArr = Object.entries(teams).map(([idx, t]) => ({ idx: Number(idx), name: t.name }));
   const state = NinjaBattleBattle.initBattle(charSheets, null, MD.skills, MD.ninjutsu, null, teamsArr);
-  await roomRef.update({ status: 'battle', state: JSON.stringify(state) });
+  await roomRef.update({
+    status:        'battle',
+    state:         JSON.stringify(state),
+    maxPlayers:    charSheets.length,
+    plots:         plotsObj,
+    slotToBattleIdx,
+  });
 }
 
 // ===== 待機室の描画 =====
@@ -1885,14 +1876,32 @@ function renderOnlineRoomFromData(room) {
     }
     html += `</div>`;
   } else {
-    // 準備完了
-    const readyCount  = Object.values(players).filter(p => p && p.ready).length;
-    const teamsUsed   = new Set(Object.values(players).filter(p => p && p.teamIdx != null).map(p => p.teamIdx));
-    const allFullReady = readyCount >= maxP && teamsUsed.size >= 2;
-    if (allFullReady) {
-      html += `<p style="color:#e8c87a;margin-top:12px">全員準備完了！戦闘を開始します…</p>`;
+    // 準備完了済みの自分のステータス表示
+    const connectedPlayers = Object.values(players).filter(p => p && p.uid);
+    const readyPlayers     = connectedPlayers.filter(p => p.ready && p.charJson && p.teamIdx != null);
+    const readyCount       = readyPlayers.length;
+    const teamsUsed        = new Set(readyPlayers.map(p => p.teamIdx));
+
+    if (myPlayerIdx === 0) {
+      // ホスト: スタートボタン
+      const canStart = readyCount >= 2 && teamsUsed.size >= 2;
+      html += `<div style="margin-top:16px;padding:14px;border:1px solid #8a6030;border-radius:8px">
+        <div style="margin-bottom:8px;color:#aaa;font-size:0.85em">準備完了: ${readyCount}/${connectedPlayers.length}人</div>`;
+      if (canStart) {
+        const notReadyCount = connectedPlayers.length - readyCount;
+        html += `<button class="primary" style="width:100%;padding:14px;font-size:1.1em;background:#4a2a0a;border-color:#e8c87a"
+          onclick="OnlineApp.hostStartBattle()">⚔ 戦闘開始</button>`;
+        if (notReadyCount > 0) {
+          html += `<p style="color:#888;font-size:0.8em;margin-top:6px">※ ${notReadyCount}人が未準備ですが開始できます（その人は参戦しません）</p>`;
+        }
+      } else {
+        let reason = readyCount < 2 ? `準備完了が${readyCount}人（2人以上必要）` : '両チームに最低1人必要';
+        html += `<p style="color:#888;font-size:0.85em">まだ開始できません：${reason}</p>`;
+      }
+      html += `</div>`;
     } else {
-      html += `<p style="color:#6c6;margin-top:12px">✓ 準備完了 — 他のプレイヤーを待っています…（${readyCount}/${maxP}人）</p>`;
+      // ゲスト: 待機メッセージ
+      html += `<p style="color:#6c6;margin-top:12px">✓ 準備完了 — ホストのスタートを待っています…（${readyCount}/${connectedPlayers.length}人準備済）</p>`;
     }
   }
 
